@@ -2,6 +2,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import Whiteboard from "../../components/Whiteboard";
+
 import {
   取得目前進度id,
   讀取進度,
@@ -15,8 +18,7 @@ import {
   提交答案,
   可否前進下一題,
   前進下一題,
-  格式化時間
-import Whiteboard from "../../components/Whiteboard";
+  格式化時間,
 } from "../../../lib/session";
 
 const wrap: React.CSSProperties = {
