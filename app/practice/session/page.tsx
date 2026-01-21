@@ -1,6 +1,10 @@
-// app/practice/session/page.tsx
+import { Suspense } from "react";
 import SessionClient from "./SessionClient";
 
 export default function Page() {
-  return <SessionClient />;
+  return (
+    <Suspense fallback={<div style={{ padding: 16 }}>Loading...</div>}>
+      <SessionClient />
+    </Suspense>
+  );
 }
