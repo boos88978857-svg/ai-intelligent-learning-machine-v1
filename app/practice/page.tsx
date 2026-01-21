@@ -95,7 +95,7 @@ export default function PracticeHubPage() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <span style={pill}>第 {s.currentIndex + 1} 題 / {((s as any).totalQuestions ?? (s as any).total ?? (s as any).questionCount ?? (s as any).questions?.length ?? 0)}</span>
                   <span style={pill}>⏱ {formatTime(s.elapsedSec)}</span>
-                  <span style={pill}>對：{s.correct} / 錯：{s.wrong}</span>
+                  <span style={pill}>對：{((s as any).correct ?? (s as any).correctCount ?? (s as any).right ?? (s as any).答對數 ?? 0)} / 錯：{((s as any).wrong ?? (s as any).wrongCount ?? (s as any).incorrect ?? (s as any).答錯數 ?? 0)}</span>
                   <span style={pill}>提示：{Math.max(0, s.hintLimit - s.hintUsed)}/{s.hintLimit}</span>
                 </div>
               </div>
