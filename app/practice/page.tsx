@@ -93,7 +93,7 @@ export default function PracticeHubPage() {
               <div style={row}>
                 <div style={{ fontWeight: 900, fontSize: 18 }}>{s.subject} 進度</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span style={pill}>第 {s.currentIndex + 1} 題 / {s.totalQuestions}</span>
+                  <span style={pill}>第 {s.currentIndex + 1} 題 / {((s as any).totalQuestions ?? (s as any).total ?? (s as any).questionCount ?? (s as any).questions?.length ?? 0)}</span>
                   <span style={pill}>⏱ {formatTime(s.elapsedSec)}</span>
                   <span style={pill}>對：{s.correct} / 錯：{s.wrong}</span>
                   <span style={pill}>提示：{Math.max(0, s.hintLimit - s.hintUsed)}/{s.hintLimit}</span>
