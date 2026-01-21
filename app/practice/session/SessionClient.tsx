@@ -453,3 +453,7 @@ export default function SessionClient() {
           </div>
         </div>
       </div>
+
+    </main>
+  );
+}
