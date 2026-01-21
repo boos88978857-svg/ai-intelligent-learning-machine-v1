@@ -100,3 +100,106 @@ export default function Whiteboard({ open, onClose }: Props) {
     setIsDown(false);
     setLast(null);
   };
+
+  // 打开时锁住页面滚动（手机体验更好）
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const overlay: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.55)",
+    zIndex: 9999,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+  };
+
+  const panel: React.CSSProperties = {
+    width: "min(980px, 100%)",
+    height: "min(620px, 78vh)",
+    background: "#fff",
+    borderRadius: 18,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+  };
+
+  const topbar: React.CSSProperties = {
+    padding: "10px 12px",
+    borderBottom: "1px solid #e5e7eb",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  };
+
+  const title: React.CSSProperties = { fontWeight: 900 };
+
+  const btnRow: React.CSSProperties = { display: "flex", gap: 8 };
+
+  const btn: React.CSSProperties = {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    fontWeight: 700,
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    ...btn,
+    border: "1px solid #111827",
+  };
+
+  const body: React.CSSProperties = {
+    padding: 12,
+    flex: 1,
+  };
+
+  const canvasWrap: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    background: "#f9fafb",
+    border: "1px dashed #d1d5db",
+    borderRadius: 14,
+    overflow: "hidden",
+    touchAction: "none",
+  };
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={panel} onClick={(e) => e.stopPropagation()}>
+        <div style={topbar}>
+          <div style={title}>📝 涂鸦墙</div>
+          <div style={btnRow}>
+            <button style={btn} onClick={clear}>
+              清空
+            </button>
+            <button style={btnPrimary} onClick={onClose}>
+              关闭
+            </button>
+          </div>
+        </div>
+
+        <div style={body}>
+          <div ref={wrapRef} style={canvasWrap}>
+            <canvas
+              ref={canvasRef}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
