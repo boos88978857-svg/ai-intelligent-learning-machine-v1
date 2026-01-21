@@ -1,75 +1,67 @@
- import Link from "next/link";
+import Link from "next/link";
 
 const grid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 18,
-  marginTop: 24
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 12
+};
+
+const gridMobile: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 12
 };
 
 const card: React.CSSProperties = {
-  padding: "26px 22px",
-  borderRadius: 20,
-  background: "#fff",
+  padding: "18px 14px",
+  borderRadius: 18,
   border: "1px solid #e6e6e6",
+  background: "#fff",
   textDecoration: "none",
   color: "#111",
-  fontWeight: 900,
-  lineHeight: 1.6,
   display: "flex",
   flexDirection: "column",
-  justifyContent: "space-between"
+  gap: 10
 };
 
-const desc: React.CSSProperties = {
-  fontWeight: 500,
-  opacity: 0.75,
-  marginTop: 8
-};
+const title: React.CSSProperties = { fontSize: 18, fontWeight: 900 };
+const desc: React.CSSProperties = { opacity: 0.75, lineHeight: 1.7, fontSize: 13 };
 
 export default function HomePage() {
   return (
-    <>
-      <h1 style={{ fontSize: 34, fontWeight: 900, margin: "0 0 6px" }}>
-        歡迎使用 ai智能學習機
-      </h1>
-      <p style={{ opacity: 0.7, lineHeight: 1.7 }}>
-        個人化 AI 學習系統，支援英文、數學與多學科練習。
+    <main>
+      <h1 style={{ margin: "0 0 10px", fontSize: 30, fontWeight: 900 }}>首頁</h1>
+      <p style={{ margin: "0 0 14px", opacity: 0.75, lineHeight: 1.7 }}>
+        先把框架入口打通，後續再加入英文學習、分級題庫、涂鴉牆、珠算、競技場等模組。
       </p>
 
+      {/* RWD：手机两栏，网页三栏 */}
       <div style={grid}>
         <Link href="/english" style={card}>
-          <div>
-            英文專區
-            <div style={desc}>學習 · 練習 · 音標與聽力</div>
-          </div>
-          <div>進入 →</div>
+          <div style={title}>英文專區</div>
+          <div style={desc}>學習 + 練習（A1~C2 / 多益）</div>
         </Link>
 
         <Link href="/math" style={card}>
-          <div>
-            數學專區
-            <div style={desc}>國小 · 國中 · 高中分級練習</div>
-          </div>
-          <div>進入 →</div>
+          <div style={title}>數學專區</div>
+          <div style={desc}>國小/國中/高中 分級練習</div>
         </Link>
 
         <Link href="/other" style={card}>
-          <div>
-            其他學科
-            <div style={desc}>彈性擴充更多學習內容</div>
-          </div>
-          <div>進入 →</div>
+          <div style={title}>其他學科</div>
+          <div style={desc}>後續擴充入口</div>
         </Link>
 
         <Link href="/arena" style={card}>
-          <div>
-            學習競技場
-            <div style={desc}>挑戰模式 · 成就與排行</div>
-          </div>
-          <div>進入 →</div>
+          <div style={title}>學習競技場</div>
+          <div style={desc}>對戰/排行（後續建置）</div>
         </Link>
       </div>
-    </>
+
+      {/* 小提醒：手机显示不靠 CSS 档，先用说明 */}
+      <div style={{ marginTop: 12, opacity: 0.6, lineHeight: 1.7 }}>
+        ※ 手機版：卡片會自動換行（之後再做更完整的 RWD 佈局與 3D 科技感視覺）。
+      </div>
+    </main>
   );
 }
