@@ -3,26 +3,27 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "ai智能學習機",
-  description: "AI 智能學習機：英文、數學、多學科學習與練習系統"
+  description: "ai智能學習機（框架雛形）"
 };
 
 const navWrap: React.CSSProperties = {
   position: "sticky",
   top: 0,
-  zIndex: 50,
+  zIndex: 10,
   background: "rgba(255,255,255,0.9)",
   backdropFilter: "blur(10px)",
-  borderBottom: "1px solid #eaeaea"
+  borderBottom: "1px solid #eee"
 };
 
 const navInner: React.CSSProperties = {
   maxWidth: 1100,
   margin: "0 auto",
-  padding: "12px 14px",
+  padding: "10px 12px",
   display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
   alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12
+  justifyContent: "space-between"
 };
 
 const brand: React.CSSProperties = {
@@ -30,33 +31,27 @@ const brand: React.CSSProperties = {
   letterSpacing: 0.2
 };
 
-const navRight: React.CSSProperties = {
+const navBtns: React.CSSProperties = {
   display: "flex",
-  gap: 10,
+  gap: 8,
   flexWrap: "wrap",
   alignItems: "center"
 };
 
 const navBtn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 14,
+  padding: "8px 10px",
+  borderRadius: 12,
   border: "1px solid #e5e5e5",
-  textDecoration: "none",
-  color: "#111",
+  background: "#fff",
   fontWeight: 900,
-  background: "#fff"
+  color: "#111",
+  textDecoration: "none"
 };
 
-const pageWrap: React.CSSProperties = {
-  minHeight: "100vh",
-  background:
-    "radial-gradient(1000px 500px at 20% -10%, rgba(0,0,0,0.06), transparent), radial-gradient(900px 500px at 90% 0%, rgba(0,0,0,0.05), transparent), #fafafa"
-};
-
-const mainWrap: React.CSSProperties = {
+const page: React.CSSProperties = {
   maxWidth: 1100,
   margin: "0 auto",
-  padding: "18px 14px 40px"
+  padding: "14px 12px 40px"
 };
 
 export default function RootLayout({
@@ -66,12 +61,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-Hant">
-      <body style={pageWrap}>
+      <body style={{ margin: 0, fontFamily: "system-ui, -apple-system, Arial" }}>
         <header style={navWrap}>
           <div style={navInner}>
             <div style={brand}>ai智能學習機</div>
 
-            <nav style={navRight}>
+            <nav style={navBtns}>
               <Link href="/" style={navBtn}>
                 首頁
               </Link>
@@ -91,8 +86,9 @@ export default function RootLayout({
           </div>
         </header>
 
-        <main style={mainWrap}>{children}</main>
+        <div style={page}>{children}</div>
       </body>
     </html>
   );
 }
+
