@@ -122,3 +122,50 @@ export default function PracticeHubPage() {
     刪除進度(id);
     refresh();
   }
+
+  return (
+    <main>
+      <h1 style={title}>學習區（續做中心）</h1>
+      <p style={{ opacity: 0.75, lineHeight: 1.7, margin: "0 0 16px" }}>
+        這裡只負責「續做」：你可以同時有多個科目做到一半，全部都會列在這裡，方便繼續或清除。
+      </p>
+
+      {hasAny ? (
+        <>
+          <div style={grid}>
+            {list.map((s) => (
+              <進度卡 key={s.id} s={s} onContinue={continueOne} onClear={clearOne} />
+            ))}
+          </div>
+
+          <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link href="/" style={btn}>
+              回首頁
+            </Link>
+            <button onClick={() => router.back()} style={btn}>
+              ← 回上一頁
+            </button>
+          </div>
+        </>
+      ) : (
+        <div style={card}>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>目前沒有未完成進度</div>
+          <div style={{ opacity: 0.75, lineHeight: 1.7 }}>
+            後續你會在各科目「選擇階段」後開始作答，做到一半離開也會回到這裡顯示。
+            <br />
+            目前可先進入 Debug 建立測試進度，再回來查看列表是否正常。
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link href="/practice/debug" style={btnPrimary}>
+              前往 Debug 建立測試進度
+            </Link>
+            <Link href="/" style={btn}>
+              回首頁
+            </Link>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
