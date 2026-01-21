@@ -392,6 +392,14 @@ const [whiteboardOpen, setWhiteboardOpen] = useState(false);
           <button style={btn} onClick={onNextManual}>
             下一題 →
           </button>
+
+<button
+  style={btn}
+  onClick={() => setWhiteboardOpen(true)}
+>
+  📝 涂鴉牆
+</button>
+
         </div>
 
         {/* 訊息卡：答對 / 很可惜 */}
@@ -405,6 +413,12 @@ const [whiteboardOpen, setWhiteboardOpen] = useState(false);
       <div style={{ opacity: 0.55, fontSize: 12, lineHeight: 1.7 }}>
         ※ 目前題目為示範 mock（後續會改成你的自建題庫與階段選擇流程）
       </div>
+
+<Whiteboard
+  open={whiteboardOpen}
+  onClose={() => setWhiteboardOpen(false)}
+/>
+
     </main>
   );
 }
