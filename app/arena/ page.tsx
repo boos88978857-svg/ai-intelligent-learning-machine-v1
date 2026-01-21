@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 
 const card: React.CSSProperties = {
-  padding: "18px 16px",
+  padding: "18px 14px",
   borderRadius: 18,
-  background: "#fff",
-  border: "1px solid #e6e6e6"
+  border: "1px solid #e6e6e6",
+  background: "#fff"
 };
 
 const btn: React.CSSProperties = {
@@ -15,10 +15,7 @@ const btn: React.CSSProperties = {
   border: "1px solid #e5e5e5",
   background: "#fff",
   fontWeight: 900,
-  cursor: "pointer",
-  textDecoration: "none",
-  color: "#111",
-  display: "inline-block"
+  cursor: "pointer"
 };
 
 export default function ArenaPage() {
@@ -26,28 +23,22 @@ export default function ArenaPage() {
 
   return (
     <main>
-      <h1 style={{ fontSize: 30, fontWeight: 900, margin: "0 0 10px" }}>
-        學習競技場
-      </h1>
-      <p style={{ opacity: 0.75, lineHeight: 1.7, margin: "0 0 16px" }}>
-        這裡預留挑戰模式、成就、排行榜等功能。後續會依企劃書逐步完成。
-      </p>
+      <h1 style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 900 }}>學習競技場</h1>
 
-      <div style={{ display: "grid", gap: 14 }}>
-        <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>挑戰模式（預留）</div>
-          <div style={{ opacity: 0.75, lineHeight: 1.7 }}>
-            後續可加入：限時答題、連勝加成、段位系統等。
-          </div>
+      <div style={card}>
+        <div style={{ opacity: 0.8, lineHeight: 1.8 }}>
+          這裡未來會做：
+          <br />• 關卡 / 對戰 / 排行
+          <br />• 限時賽 / 任務賽
+          <br />• 競技數據與獎勵
+          <br />
+          目前先保留框架入口。
         </div>
 
-        <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>操作</div>
-          <div style={{ marginTop: 12 }}>
-            <button onClick={() => router.back()} style={btn}>
-              ← 回上一頁
-            </button>
-          </div>
+        <div style={{ marginTop: 14 }}>
+          <button style={btn} onClick={() => router.back()}>
+            ← 回上一頁
+          </button>
         </div>
       </div>
     </main>
