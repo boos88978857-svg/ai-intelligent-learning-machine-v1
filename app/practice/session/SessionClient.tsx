@@ -120,6 +120,8 @@ export default function SessionClient() {
   const [已選答案, set已選答案] = useState<string>("");
   const [文字答案, set文字答案] = useState<string>("");
 
+const [whiteboardOpen, setWhiteboardOpen] = useState(false);
+
   const timerRef = useRef<number | null>(null);
 
   // 读取 session：优先 URL ?id=，否则读 active id
@@ -454,6 +456,11 @@ export default function SessionClient() {
           </div>
         </div>
       </div>
+
+<Whiteboard
+  open={whiteboardOpen}
+  onClose={() => setWhiteboardOpen(false)}
+/>
 
     </main>
   );
