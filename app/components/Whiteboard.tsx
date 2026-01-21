@@ -212,3 +212,140 @@ export default function Whiteboard(props: {
     gap: 8,
     padding: 10
   };
+
+  const toolsBar: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap"
+  };
+
+  const toolBtn = (active: boolean): React.CSSProperties => ({
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: active ? "1px solid #111" : "1px solid #e5e5e5",
+    background: active ? "#f5f5f5" : "#fff",
+    fontWeight: 900,
+    cursor: "pointer"
+  });
+
+  const slider: React.CSSProperties = {
+    width: 110
+  };
+
+  return (
+    <>
+      {/* 半透明遮罩，点外面关闭 */}
+      <div style={overlayStyle} onClick={onClose} />
+
+      <div style={panelBase}>
+        {/* 顶部栏 */}
+        <div style={header}>
+          <div style={hTitle}>{title}</div>
+          <div style={hBtns}>
+            <button style={hBtn} onClick={clearAll}>清除</button>
+            <button style={hBtn} onClick={onClose}>关闭</button>
+          </div>
+        </div>
+
+        {/* 主体 */}
+        <div style={body}>
+          {/* 工具列 */}
+          <div style={toolsBar}>
+            <button
+              style={toolBtn(tool === "pen")}
+              onClick={() => {
+                setTool("pen");
+                setToolsOpen(true);
+              }}
+            >
+              ✏️ 笔
+            </button>
+
+            <button
+              style={toolBtn(tool === "eraser")}
+              onClick={() => {
+                setTool("eraser");
+                setToolsOpen(true);
+              }}
+            >
+              🧽 橡皮擦
+            </button>
+
+            {/* 手机：点工具才展开 */}
+            {toolsOpen && (
+              <>
+                {tool === "pen" ? (
+                  <>
+                    <input
+                      type="range"
+                      min={2}
+                      max={20}
+                      value={penSize}
+                      onChange={(e) => setPenSize(Number(e.target.value))}
+                      style={slider}
+                    />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {palette.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setColor(c)}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            border: c === color ? "2px solid #111" : "1px solid #e5e5e5",
+                            background: c,
+                            cursor: "pointer"
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <input
+                    type="range"
+                    min={8}
+                    max={40}
+                    value={eraserSize}
+                    onChange={(e) => setEraserSize(Number(e.target.value))}
+                    style={slider}
+                  />
+                )}
+
+                <button
+                  style={hBtn}
+                  onClick={() => setToolsOpen(false)}
+                >
+                  收合
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* 画布区 */}
+          <div
+            ref={wrapRef}
+            style={{
+              position: "relative",
+              flex: 1,
+              borderRadius: 14,
+              border: "1px solid #e6e6e6",
+              background: "#fff",
+              touchAction: "none" // 关键：防止画的时候页面滑动
+            }}
+          >
+            <canvas
+              ref={canvasRef}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerLeave={onPointerUp}
+              style={{ width: "100%", height: "100%", display: "block" }}
+            />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
