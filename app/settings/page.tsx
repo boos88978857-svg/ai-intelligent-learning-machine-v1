@@ -3,29 +3,10 @@
 import { useRouter } from "next/navigation";
 
 const card: React.CSSProperties = {
-  padding: "18px 16px",
+  padding: "18px 14px",
   borderRadius: 18,
-  background: "#fff",
-  border: "1px solid #e6e6e6"
-};
-
-const row: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "center",
-  padding: "12px 0",
-  borderBottom: "1px solid #f0f0f0"
-};
-
-const label: React.CSSProperties = {
-  fontWeight: 900
-};
-
-const hint: React.CSSProperties = {
-  opacity: 0.7,
-  fontSize: 14,
-  lineHeight: 1.6
+  border: "1px solid #e6e6e6",
+  background: "#fff"
 };
 
 const btn: React.CSSProperties = {
@@ -34,8 +15,7 @@ const btn: React.CSSProperties = {
   border: "1px solid #e5e5e5",
   background: "#fff",
   fontWeight: 900,
-  cursor: "pointer",
-  color: "#111"
+  cursor: "pointer"
 };
 
 export default function SettingsPage() {
@@ -43,40 +23,20 @@ export default function SettingsPage() {
 
   return (
     <main>
-      <h1 style={{ fontSize: 30, fontWeight: 900, margin: "0 0 10px" }}>
-        設定
-      </h1>
-      <p style={{ opacity: 0.75, lineHeight: 1.7, marginBottom: 16 }}>
-        這裡會放使用者偏好設定（例如音標系統偏好、作答介面偏好等）。
-      </p>
+      <h1 style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 900 }}>設定</h1>
 
-      <div style={{ display: "grid", gap: 14 }}>
-        <div style={card}>
-          <div style={row}>
-            <div>
-              <div style={label}>音標偏好（預留）</div>
-              <div style={hint}>支援兩種音標，點選哪種就播放哪種音。</div>
-            </div>
-            <div style={{ fontWeight: 900, opacity: 0.6 }}>尚未啟用</div>
-          </div>
-
-          <div style={row}>
-            <div>
-              <div style={label}>介面方向（預留）</div>
-              <div style={hint}>
-                App / 平板將以橫向為主；網頁維持響應式版面。
-              </div>
-            </div>
-            <div style={{ fontWeight: 900, opacity: 0.6 }}>尚未啟用</div>
-          </div>
-
-          <div style={{ paddingTop: 12, opacity: 0.7, lineHeight: 1.7 }}>
-            ※ 這頁目前先做框架，後續再接上實際功能。
-          </div>
+      <div style={card}>
+        <div style={{ opacity: 0.8, lineHeight: 1.8 }}>
+          這裡未來會包含：
+          <br />• 顯示偏好（橫/直、字體大小）
+          <br />• 英文音標偏好（IPA / KK）與發音
+          <br />• 使用者習慣記憶（提示顯示、工具預設）
+          <br />
+          目前先保留框架入口。
         </div>
 
-        <div style={card}>
-          <button onClick={() => router.back()} style={btn}>
+        <div style={{ marginTop: 14 }}>
+          <button style={btn} onClick={() => router.back()}>
             ← 回上一頁
           </button>
         </div>
