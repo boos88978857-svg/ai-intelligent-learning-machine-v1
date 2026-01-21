@@ -16,6 +16,7 @@ import {
   可否前進下一題,
   前進下一題,
   格式化時間
+import Whiteboard from "../../components/Whiteboard";
 } from "../../../lib/session";
 
 const wrap: React.CSSProperties = {
