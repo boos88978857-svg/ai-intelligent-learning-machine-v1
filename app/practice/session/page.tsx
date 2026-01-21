@@ -96,6 +96,9 @@ export default function PracticeSessionPage() {
   // 防止未作答就下一題
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
+// 涂鴉牆（可隱藏點開）
+const [whiteboardOpen, setWhiteboardOpen] = useState(false);
+
   // 計時（暫停時不走）
   useEffect(() => {
     if (!session || session.paused) return;
