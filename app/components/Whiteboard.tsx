@@ -1,184 +1,214 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-type Props = {
+type Tool = "pen" | "eraser";
+
+export default function Whiteboard(props: {
   open: boolean;
   onClose: () => void;
-};
+  title?: string;
+}) {
+  const { open, onClose, title = "涂鴉牆" } = props;
 
-export default function Whiteboard({ open, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const [畫筆大小, set畫筆大小] = useState(4);
-  const [顏色, set顏色] = useState("#000000");
-  const [使用橡皮, set使用橡皮] = useState(false);
-  const [正在畫, set正在畫] = useState(false);
+  const [tool, setTool] = useState<Tool>("pen");
+  const [penSize, setPenSize] = useState(6);
+  const [eraserSize, setEraserSize] = useState(18);
+  const [color, setColor] = useState("#111111");
 
-  // 初始化 canvas
+  // 手機：工具列預設收起，點筆/橡皮擦再展開
+  const [toolsOpen, setToolsOpen] = useState(false);
+
+  // 內部狀態：是否正在畫
+  const drawingRef = useRef(false);
+  const lastRef = useRef<{ x: number; y: number } | null>(null);
+
+  const palette = useMemo(
+    () => ["#111111", "#2563eb", "#dc2626", "#16a34a", "#7c3aed", "#f59e0b", "#0ea5e9", "#ffffff"],
+    []
+  );
+
+  // 開啟時鎖住 body 滾動（避免畫的時候畫面跟著滑動）
   useEffect(() => {
     if (!open) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = 顏色;
-    ctx.lineWidth = 畫筆大小;
-
-    ctxRef.current = ctx;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
-  // 更新画笔
+  // 依容器大小重設 canvas（保持畫布清晰）
+  function resizeCanvas() {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return;
+
+    const rect = wrap.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    // 保留舊圖
+    const old = document.createElement("canvas");
+    old.width = canvas.width;
+    old.height = canvas.height;
+    const oldCtx = old.getContext("2d");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    if (oldCtx) oldCtx.drawImage(canvas, 0, 0);
+
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = `${Math.floor(rect.width)}px`;
+    canvas.style.height = `${Math.floor(rect.height)}px`;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // 還原舊圖（依 dpr 轉回）
+    if (old.width && old.height) {
+      ctx.drawImage(old, 0, 0, old.width / dpr, old.height / dpr);
+    }
+  }
+
   useEffect(() => {
-    if (!ctxRef.current) return;
-    ctxRef.current.strokeStyle = 使用橡皮 ? "#ffffff" : 顏色;
-    ctxRef.current.lineWidth = 畫筆大小;
-  }, [顏色, 畫筆大小, 使用橡皮]);
+    if (!open) return;
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [open]);
 
-  if (!open) return null;
-
-  function 取得座標(e: any) {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-
-    // 触控优先
-    const touch = e.touches?.[0] || e.changedTouches?.[0];
-    const clientX = touch ? touch.clientX : e.clientX;
-    const clientY = touch ? touch.clientY : e.clientY;
-
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
-  }
-
-  function startDraw(e: any) {
-    e.preventDefault();
-    if (!ctxRef.current) return;
-
-    const { x, y } = 取得座標(e);
-    ctxRef.current.beginPath();
-    ctxRef.current.moveTo(x, y);
-    set正在畫(true);
-  }
-
-  function moveDraw(e: any) {
-    e.preventDefault();
-    if (!正在畫) return;
-    if (!ctxRef.current) return;
-
-    const { x, y } = 取得座標(e);
-    ctxRef.current.lineTo(x, y);
-    ctxRef.current.stroke();
-  }
-
-  function endDraw(e: any) {
-    e.preventDefault();
-    set正在畫(false);
+  function getCtx() {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    return canvas.getContext("2d");
   }
 
   function clearAll() {
+    const ctx = getCtx();
     const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-    if (!canvas || !ctx) return;
+    if (!ctx || !canvas) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  // 打开涂鸦墙时：锁住页面滚动
-  useEffect(() => {
+  function begin(x: number, y: number) {
+    drawingRef.current = true;
+    lastRef.current = { x, y };
+  }
+
+  function drawTo(x: number, y: number) {
+    const ctx = getCtx();
+    if (!ctx) return;
+
+    const last = lastRef.current;
+    if (!drawingRef.current || !last) {
+      lastRef.current = { x, y };
+      return;
+    }
+
+    const size = tool === "pen" ? penSize : eraserSize;
+
+    ctx.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
+    ctx.strokeStyle = tool === "pen" ? color : "rgba(0,0,0,1)";
+    ctx.lineWidth = size;
+
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
+    lastRef.current = { x, y };
+  }
+
+  function end() {
+    drawingRef.current = false;
+    lastRef.current = null;
+  }
+
+  // 指標事件：同時支援滑鼠與觸控，並阻止滑動
+  function onPointerDown(e: React.PointerEvent) {
     if (!open) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [open]);
+    const wrap = wrapRef.current;
+    if (!wrap) return;
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 50,
-        background: "rgba(0,0,0,0.25)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "flex-end"
-      }}
-    >
-      {/* 半屏浮层 */}
-      <div
-        style={{
-          width: "100%",
-          height: "50vh",
-          background: "#fff",
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 -10px 30px rgba(0,0,0,0.15)"
-        }}
-      >
-        {/* 工具列 */}
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            padding: "10px 12px",
-            borderBottom: "1px solid #eee",
-            alignItems: "center",
-            flexWrap: "wrap"
-          }}
-        >
-          <button onClick={() => set使用橡皮(false)}>✏️ 筆</button>
-          <button onClick={() => set使用橡皮(true)}>🧽 橡皮</button>
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
 
-          <input
-            type="color"
-            value={顏色}
-            onChange={(e) => set顏色(e.target.value)}
-          />
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    begin(x, y);
+  }
 
-          <input
-            type="range"
-            min={2}
-            max={16}
-            value={畫筆大小}
-            onChange={(e) => set畫筆大小(Number(e.target.value))}
-          />
+  function onPointerMove(e: React.PointerEvent) {
+    if (!open) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
 
-          <button onClick={clearAll}>清空</button>
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    drawTo(x, y);
+  }
 
-          <div style={{ flex: 1 }} />
+  function onPointerUp() {
+    end();
+  }
 
-          <button onClick={onClose}>關閉 ✕</button>
-        </div>
+  if (!open) return null;
 
-        {/* 画布 */}
-        <div style={{ flex: 1 }}>
-          <canvas
-            ref={canvasRef}
-            style={{ width: "100%", height: "100%", touchAction: "none" }}
-            onMouseDown={startDraw}
-            onMouseMove={moveDraw}
-            onMouseUp={endDraw}
-            onMouseLeave={endDraw}
-            onTouchStart={startDraw}
-            onTouchMove={moveDraw}
-            onTouchEnd={endDraw}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+  // 半屏：直向 -> 底部半屏；橫向/寬螢幕 -> 右側半屏
+  const isLandscape = typeof window !== "undefined" ? window.innerWidth > window.innerHeight : true;
+  const panelStyle: React.CSSProperties = isLandscape
+    ? { position: "fixed", top: 0, right: 0, width: "50vw", height: "100vh" }
+    : { position: "fixed", left: 0, bottom: 0, width: "100vw", height: "50vh" };
+
+  const overlayStyle: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 50,
+    background: "rgba(0,0,0,0.25)"
+  };
+
+  const panelBase: React.CSSProperties = {
+    ...panelStyle,
+    background: "rgba(255,255,255,0.92)",
+    backdropFilter: "blur(10px)",
+    borderLeft: isLandscape ? "1px solid #e5e5e5" : undefined,
+    borderTop: !isLandscape ? "1px solid #e5e5e5" : undefined,
+    display: "grid",
+    gridTemplateRows: "auto 1fr",
+    overflow: "hidden"
+  };
+
+  const header: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: "10px 10px",
+    borderBottom: "1px solid #eee"
+  };
+
+  const hTitle: React.CSSProperties = { fontWeight: 900 };
+
+  const hBtns: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
+
+  const hBtn: React.CSSProperties = {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid #e5e5e5",
+    background: "#fff",
+    fontWeight: 900,
+    cursor: "pointer"
+  };
+
+  const body: React.CSSProperties = {
+    position: "relative",
+    display: "grid",
+    gridTemplateRows: "auto 1fr",
+    gap: 8,
+    padding: 10
+  };
