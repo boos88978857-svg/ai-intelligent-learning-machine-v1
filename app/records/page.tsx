@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 
 const card: React.CSSProperties = {
-  padding: "18px 16px",
+  padding: "18px 14px",
   borderRadius: 18,
-  background: "#fff",
-  border: "1px solid #e6e6e6"
+  border: "1px solid #e6e6e6",
+  background: "#fff"
 };
 
 const btn: React.CSSProperties = {
@@ -15,8 +15,7 @@ const btn: React.CSSProperties = {
   border: "1px solid #e5e5e5",
   background: "#fff",
   fontWeight: 900,
-  cursor: "pointer",
-  color: "#111"
+  cursor: "pointer"
 };
 
 export default function RecordsPage() {
@@ -24,25 +23,20 @@ export default function RecordsPage() {
 
   return (
     <main>
-      <h1 style={{ fontSize: 30, fontWeight: 900, margin: "0 0 10px" }}>
-        學習記錄
-      </h1>
-      <p style={{ opacity: 0.75, lineHeight: 1.7, marginBottom: 16 }}>
-        這裡會顯示各科目的學習紀錄、答題歷程與統計數據。
-      </p>
+      <h1 style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 900 }}>記錄</h1>
 
-      <div style={{ display: "grid", gap: 14 }}>
-        <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            紀錄內容（預留）
-          </div>
-          <div style={{ opacity: 0.75, lineHeight: 1.7 }}>
-            未來會顯示：作答次數、正確率、學習時間、成長趨勢。
-          </div>
+      <div style={card}>
+        <div style={{ opacity: 0.8, lineHeight: 1.8 }}>
+          這裡未來會呈現：
+          <br />• 練習紀錄、回合成績、錯題回顧
+          <br />• 速度（秒數）與正確率趨勢
+          <br />• 競技場戰績
+          <br />
+          目前先保留框架入口。
         </div>
 
-        <div style={card}>
-          <button onClick={() => router.back()} style={btn}>
+        <div style={{ marginTop: 14 }}>
+          <button style={btn} onClick={() => router.back()}>
             ← 回上一頁
           </button>
         </div>
