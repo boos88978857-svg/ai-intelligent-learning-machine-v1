@@ -18,6 +18,8 @@ import {
   useHint
 } from "../../../lib/session";
 
+import Whiteboard from "../../../components/Whiteboard";
+
 // ====== UI 樣式（先用 inline，後續再抽 CSS 做 3D 科技感）======
 const wrap: React.CSSProperties = { display: "grid", gap: 12 };
 const card: React.CSSProperties = {
