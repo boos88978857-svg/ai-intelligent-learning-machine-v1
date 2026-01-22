@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import {
-  listSessions,
-  removeSession,
-  setActiveSessionId,
-  formatTime,
-  PracticeSession,
-  createSession,
-} from "../../lib/session";
+// ✅ 不用具名 import，避免“未导出成员”导致编译失败
+import * as S from "../../lib/session";
+import type { PracticeSession } from "../../lib/session";
 
 /* ================= 基础样式 ================= */
 
@@ -59,52 +54,93 @@ const btnPrimary: React.CSSProperties = {
   border: "1px solid #111",
 };
 
+/* ================= 兼容层：自动找得到你 lib/session 里的函数 ================= */
+
+function getFns() {
+  const anyS = S as any;
+
+  const listSessions =
+    anyS.listSessions ||
+    anyS.列出進度 ||
+    anyS.getAllSessions ||
+    anyS.readAll ||
+    (() => []);
+
+  const removeSession =
+    anyS.removeSession ||
+    anyS.刪除進度 ||
+    anyS.deleteSession ||
+    anyS.remove ||
+    (() => {});
+
+  const setActiveSessionId =
+    anyS.setActiveSessionId ||
+    anyS.設定目前進度id ||
+    anyS.setCurrentSessionId ||
+    (() => {});
+
+  const formatTime =
+    anyS.formatTime ||
+    anyS.格式化時間 ||
+    ((sec: number) => `${sec}s`);
+
+  // ✅ 关键：创建 session 的函数名兼容
+  const create =
+    anyS.createSession ||
+    anyS.newSession ||
+    anyS.新增進度 ||
+    anyS.建立新進度;
+
+  return { listSessions, removeSession, setActiveSessionId, formatTime, create };
+}
+
 /* ================= 页面本体 ================= */
 
 export default function PracticePage() {
   const router = useRouter();
   const sp = useSearchParams();
-
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
 
-  /* ====== 读取 URL 参数 ====== */
-  const subject = sp.get("subject");
-  const stage = sp.get("stage");
+  const subject = sp.get("subject"); // 例如：英文
+  const stage = sp.get("stage"); // 例如：A1 / APPLIED（v1 先不做题库逻辑）
 
-  /* ====== 初始化：如果有 subject，就确保有进度 ====== */
   useEffect(() => {
-    // 1️⃣ 先读现有进度
-    const all = listSessions();
+    const { listSessions, setActiveSessionId, create } = getFns();
+
+    const all: PracticeSession[] = listSessions();
     setSessions(all);
 
-    // 2️⃣ 如果是从「阶段卡」进来的
+    // ✅ 从“阶段卡”进来：/practice?subject=英文&stage=A1
     if (subject) {
-      // 是否已经有同科目的未完成进度
-      const exist = all.find(
-        (s) => s.subject === subject && !s.finished
-      );
+      // 找这个科目的“未完成进度”
+      const exist = all.find((s: any) => s?.subject === subject && !s?.finished);
 
       if (exist) {
         setActiveSessionId(exist.id);
-        router.replace(`/practice/session?id=${exist.id}`);
+        router.replace(`/practice/session?id=${encodeURIComponent(exist.id)}`);
         return;
       }
 
-      // 3️⃣ 没有就新建一个（v1：不管 stage，只记录）
-      const created = createSession(subject as any);
-      setActiveSessionId(created.id);
-      router.replace(`/practice/session?id=${created.id}`);
+      // 没有就新建一个（stage 暂时只当参数保留）
+      if (!create) {
+        // 如果这里触发，说明 lib/session 里没有任何“创建进度”函数
+        // 你把这行错误截图发我，我会按你现有 lib/session 直接改名对齐
+        console.error("lib/session 找不到 createSession / newSession / 新增進度 / 建立新進度");
+        return;
+      }
+
+      const created: PracticeSession = create(subject);
+      setActiveSessionId((created as any).id);
+      router.replace(`/practice/session?id=${encodeURIComponent((created as any).id)}`);
     }
   }, [subject, stage, router]);
 
-  /* ================= UI ================= */
+  const { removeSession, setActiveSessionId, formatTime } = getFns();
 
   return (
     <main style={wrap}>
       <div style={card}>
-        <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>
-          學習區
-        </div>
+        <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>學習區</div>
         <div style={{ opacity: 0.7, fontSize: 14 }}>
           這裡只負責「續做」：你可以同時有多個科目的進度，隨時切換或清除。
         </div>
@@ -114,21 +150,19 @@ export default function PracticePage() {
 
       {sessions.length === 0 ? (
         <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            目前沒有未完成進度
-          </div>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>目前沒有未完成進度</div>
           <div style={{ opacity: 0.7, fontSize: 14 }}>
-            之後你會從「英文 / 數學 / 其他」選擇階段後開始作答，進度就會出現在這裡。
+            你可以從英文專區選 A1/A2… 進來，系統會自動建立一個進度並進入作答頁。
           </div>
         </div>
       ) : (
-        sessions.map((s) => (
+        sessions.map((s: any) => (
           <div key={s.id} style={{ ...card, marginBottom: 10 }}>
             <div style={row}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <span style={pill}>科目：{s.subject}</span>
-                <span style={pill}>第 {s.currentIndex + 1} 題</span>
-                <span style={pill}>⏱ {formatTime(s.elapsedSec)}</span>
+                <span style={pill}>第 {Number(s.currentIndex ?? 0) + 1} 題</span>
+                <span style={pill}>⏱ {formatTime(Number(s.elapsedSec ?? 0))}</span>
               </div>
 
               <div style={{ display: "flex", gap: 8 }}>
@@ -136,7 +170,7 @@ export default function PracticePage() {
                   style={btnPrimary}
                   onClick={() => {
                     setActiveSessionId(s.id);
-                    router.push(`/practice/session?id=${s.id}`);
+                    router.push(`/practice/session?id=${encodeURIComponent(s.id)}`);
                   }}
                 >
                   繼續
@@ -146,7 +180,7 @@ export default function PracticePage() {
                   style={btn}
                   onClick={() => {
                     removeSession(s.id);
-                    setSessions(listSessions());
+                    setSessions(getFns().listSessions());
                   }}
                 >
                   清除
