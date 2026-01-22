@@ -1,38 +1,28 @@
 // app/english/page.tsx
 "use client";
 
+import React from "react";
 import Link from "next/link";
-import { useMemo } from "react";
 
-const wrap: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  padding: "16px 12px 28px",
+type Stage = {
+  id: string;
+  label: string;
+  sub: string;
+  href: string;
 };
 
+const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "18px 14px" };
 const topRow: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 14,
   flexWrap: "wrap",
-  marginBottom: 12,
 };
-
-const title: React.CSSProperties = {
-  margin: 0,
-  fontSize: 30,
-  fontWeight: 900,
-  letterSpacing: 0.2,
-};
-
-const desc: React.CSSProperties = {
-  margin: "6px 0 0",
-  opacity: 0.75,
-  lineHeight: 1.7,
-};
-
+const title: React.CSSProperties = { fontSize: 34, fontWeight: 900, margin: 0 };
+const desc: React.CSSProperties = { marginTop: 8, opacity: 0.7, lineHeight: 1.7 };
 const backBtn: React.CSSProperties = {
+  display: "inline-block",
   padding: "10px 12px",
   borderRadius: 12,
   border: "1px solid #ddd",
@@ -44,81 +34,59 @@ const backBtn: React.CSSProperties = {
 const grid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 12,
-  marginTop: 14,
+  gap: 14,
+  marginTop: 16,
 };
-
 const gridMobile: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: 12,
-  marginTop: 14,
+  marginTop: 16,
 };
 
 const card: React.CSSProperties = {
+  padding: "16px 16px",
   borderRadius: 18,
-  border: "1px solid #e6e6e6",
   background: "#fff",
-  padding: "14px 14px",
+  border: "1px solid #e6e6e6",
   textDecoration: "none",
   color: "#111",
 };
+const cardTitle: React.CSSProperties = { fontSize: 22, fontWeight: 900, margin: 0 };
+const cardMeta: React.CSSProperties = { marginTop: 6, opacity: 0.75, lineHeight: 1.5 };
+const small: React.CSSProperties = { marginTop: 10, opacity: 0.7 };
 
-const cardTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 18,
-  fontWeight: 900,
-};
+const stages: Stage[] = [
+  { id: "a1", label: "A1", sub: "基礎入門", href: "/practice?subject=英文&stage=A1" },
+  { id: "a2", label: "A2", sub: "加強基礎", href: "/practice?subject=英文&stage=A2" },
+  { id: "b1", label: "B1", sub: "實用進階", href: "/practice?subject=英文&stage=B1" },
+  { id: "b2", label: "B2", sub: "高階運用", href: "/practice?subject=英文&stage=B2" },
+  { id: "c1", label: "C1", sub: "精準表達", href: "/practice?subject=英文&stage=C1" },
+  { id: "c2", label: "C2", sub: "母語程度", href: "/practice?subject=英文&stage=C2" },
 
-const cardMeta: React.CSSProperties = {
-  margin: "6px 0 0",
-  opacity: 0.7,
-  lineHeight: 1.6,
-  fontSize: 13,
-};
-
-const small: React.CSSProperties = {
-  marginTop: 10,
-  fontSize: 13,
-  opacity: 0.7,
-};
-
-type Stage = {
-  id: string;
-  label: string;
-  sub: string;
-  // 未来接学习页 / 选择阶段页
-  href: string;
-};
+  // ✅ 这张我们要做成长条横向
+  { id: "applied", label: "英語應用能力", sub: "情境整合（非考試）", href: "/practice?subject=英文&stage=APPLIED" },
+];
 
 export default function EnglishPage() {
-  const stages: Stage[] = useMemo(
-    () => [
-      { id: "a1", label: "A1", sub: "基礎入門", href: "/english/a1" },
-      { id: "a2", label: "A2", sub: "加強基礎", href: "/english/a2" },
-      { id: "b1", label: "B1", sub: "實用進階", href: "/english/b1" },
-      { id: "b2", label: "B2", sub: "高階運用", href: "/english/b2" },
-      { id: "c1", label: "C1", sub: "精準表達", href: "/english/c1" },
-      { id: "c2", label: "C2", sub: "母語程度", href: "/english/c2" },
-      { id: "applied", label: "英語應用能力", sub: "情境整合（非考試）", href: "/english/applied" },
-    ],
-    []
-  );
-
   return (
     <main style={wrap}>
       <div style={topRow}>
         <div>
           <h1 style={title}>英文專區</h1>
-          <p style={desc}>
-            先把「階段入口」做穩，v2 只做 UI 與導航，不碰題庫/AI/判分。
-          </p>
+          <p style={desc}>先把「階段入口」做穩，v2 只做 UI 與導航，不碰題庫/AI/判分。</p>
         </div>
 
         <Link href="/" style={backBtn}>
           ← 回首頁
         </Link>
       </div>
+
+      {/* 手机/窄萤幕 2 栏，宽萤幕 3 栏 */}
+      <ResponsiveGrid stages={stages} />
+    </main>
+  );
+}
 
 function ResponsiveGrid({ stages }: { stages: Stage[] }) {
   const isNarrow =
@@ -142,7 +110,7 @@ function ResponsiveGrid({ stages }: { stages: Stage[] }) {
         ))}
       </div>
 
-      {/* 英語應用能力：横向强调卡 */}
+      {/* ✅ 英語應用能力：横向长条强调卡 */}
       {appliedStage && (
         <div style={{ marginTop: 14 }}>
           <Link
@@ -157,15 +125,11 @@ function ResponsiveGrid({ stages }: { stages: Stage[] }) {
             }}
           >
             <div>
-              <h2 style={{ ...cardTitle, fontSize: 20 }}>
-                {appliedStage.label}
-              </h2>
-              <div style={{ ...cardMeta, fontSize: 14 }}>
-                {appliedStage.sub}
-              </div>
+              <h2 style={{ ...cardTitle, fontSize: 20 }}>{appliedStage.label}</h2>
+              <div style={{ ...cardMeta, fontSize: 14 }}>{appliedStage.sub}</div>
             </div>
 
-            <div style={{ fontSize: 14, opacity: 0.8 }}>→</div>
+            <div style={{ fontSize: 16, opacity: 0.8 }}>→</div>
           </Link>
         </div>
       )}
