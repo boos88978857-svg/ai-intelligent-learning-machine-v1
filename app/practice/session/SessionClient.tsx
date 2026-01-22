@@ -140,3 +140,140 @@ export default function SessionClient() {
       </main>
     );
   }
+
+  return (
+    <main style={wrap}>
+      {/* ===== 頂部狀態 ===== */}
+      <div style={card}>
+        <div style={{ ...row, justifyContent: "space-between" }}>
+          <div style={row}>
+            <span style={pill}>科目：{session.subject}</span>
+            <span style={pill}>第 {session.currentIndex + 1} 題</span>
+            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
+            <span style={pill}>對：{session.correctCount} / 錯：{session.wrongCount}</span>
+            <span style={pill}>提示：{session.hintUsed}/{session.hintLimit}</span>
+          </div>
+
+          <div style={row}>
+            <button onClick={togglePause} style={btn}>
+              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+            </button>
+            <button onClick={() => router.replace("/practice")} style={btn}>
+              ← 回上一頁
+            </button>
+          </div>
+        </div>
+
+        {session.paused ? (
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
+            已暫停；按「繼續」後再作答。
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ height: 10 }} />
+
+      {/* ===== 提示區 ===== */}
+      <div style={card}>
+        <div style={{ fontWeight: 900, marginBottom: 10 }}>提示</div>
+
+        <div style={row}>
+          <button onClick={onHint} disabled={!canHint} style={{ ...btn, opacity: canHint ? 1 : 0.5 }}>
+            顯示提示
+          </button>
+
+          <button style={btn} onClick={() => setWhiteboardOpen(true)}>
+            📝 涂鴉牆
+          </button>
+        </div>
+
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px dashed #e0e0e0" }}>
+          {hintText ? (
+            <div style={{ lineHeight: 1.8 }}>{hintText}</div>
+          ) : (
+            <div style={{ opacity: 0.7, lineHeight: 1.8 }}>
+              點「顯示提示」後會顯示提示內容（答對前會停留）。
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ height: 10 }} />
+
+      {/* ===== 作答區（Step 2：先能輸入，不判斷對錯）===== */}
+      <div style={card}>
+        <div style={{ fontWeight: 900, marginBottom: 10 }}>作答區（Step 2）</div>
+
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            border: "1px solid #e6e6e6",
+            background: "#fafafa",
+            lineHeight: 1.7,
+          }}
+        >
+          題目（暫用測試）：2 + 3 = ?
+        </div>
+
+        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            value={textAnswer}
+            onChange={(e) => setTextAnswer(e.target.value)}
+            placeholder="請輸入答案（暫不判斷）"
+            style={{
+              flex: "1 1 220px",
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid #ddd",
+              fontSize: 16,
+              outline: "none",
+              background: "#fff",
+            }}
+          />
+
+          <button
+            style={btnPrimary}
+            onClick={() => {
+              const value = textAnswer.trim();
+              if (!value) {
+                setMsg("請先輸入答案再送出。");
+                return;
+              }
+              setSubmitted(value);
+              setMsg(`你已送出答案：${value}`);
+            }}
+          >
+            送出
+          </button>
+
+          <button
+            style={btn}
+            onClick={() => {
+              setTextAnswer("");
+              setSubmitted(null);
+              setMsg(null);
+            }}
+          >
+            清除
+          </button>
+        </div>
+
+        {submitted ? (
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>
+            目前送出：{submitted}
+          </div>
+        ) : null}
+
+        {msg ? (
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>
+            {msg}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ✅ Whiteboard 本體：放在 </main> 之前 */}
+      <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
+    </main>
+  );
+}
