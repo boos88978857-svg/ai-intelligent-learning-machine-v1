@@ -110,6 +110,11 @@ setQuestions(取一回合(s.subject));
     };
   }, [session?.id, session?.paused]);
 
+const currentQuestion = useMemo(() => {
+  if (!session) return null;
+  return questions[session.currentIndex] ?? null;
+}, [questions, session?.currentIndex]);
+
   const canHint = useMemo(() => {
     if (!session) return false;
     return session.hintUsed < session.hintLimit;
@@ -204,6 +209,13 @@ setQuestions(取一回合(s.subject));
       {/* ===== 作答區（Step 2：先能輸入，不判斷對錯）===== */}
       <div style={card}>
         <div style={{ fontWeight: 900, marginBottom: 10 }}>作答區（Step 2）</div>
+
+<div style={{ padding: 12, borderRadius: 12, border: "1px solid #e6e6e6", background: "#fafafa" }}>
+  <div style={{ fontWeight: 900, marginBottom: 6 }}>題目（暫用測試）</div>
+  <div style={{ lineHeight: 1.8 }}>
+    {currentQuestion ? currentQuestion.prompt : "讀取中…"}
+  </div>
+</div>
 
         <div
           style={{
