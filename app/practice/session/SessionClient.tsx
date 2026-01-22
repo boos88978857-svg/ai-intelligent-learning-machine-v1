@@ -154,6 +154,7 @@ const currentQuestion = useMemo(() => {
         <div style={{ ...row, justifyContent: "space-between" }}>
           <div style={row}>
             <span style={pill}>科目：{session.subject}</span>
+<span style={pill}>階段：{(session as any).stage ?? "-"}</span>
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
             <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
             <span style={pill}>對：{session.correctCount} / 錯：{session.wrongCount}</span>
