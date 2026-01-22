@@ -120,26 +120,55 @@ export default function EnglishPage() {
         </Link>
       </div>
 
-      {/* 说明：手机/窄萤幕用 2 欄，宽萤幕用 3 欄 */}
-      <ResponsiveGrid stages={stages} />
-    </main>
-  );
-}
-
 function ResponsiveGrid({ stages }: { stages: Stage[] }) {
-  // 纯 client 简单判断宽度，不依赖任何外部库
   const isNarrow =
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 640px)").matches : false;
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 640px)").matches
+      : false;
+
+  const normalStages = stages.filter((s) => s.id !== "applied");
+  const appliedStage = stages.find((s) => s.id === "applied");
 
   return (
-    <div style={isNarrow ? gridMobile : grid}>
-      {stages.map((s) => (
-        <Link key={s.id} href={s.href} style={card}>
-          <h2 style={cardTitle}>{s.label}</h2>
-          <div style={cardMeta}>{s.sub}</div>
-          <div style={small}>點擊進入 →</div>
-        </Link>
-      ))}
-    </div>
+    <>
+      {/* 一般阶段卡 */}
+      <div style={isNarrow ? gridMobile : grid}>
+        {normalStages.map((s) => (
+          <Link key={s.id} href={s.href} style={card}>
+            <h2 style={cardTitle}>{s.label}</h2>
+            <div style={cardMeta}>{s.sub}</div>
+            <div style={small}>點擊進入 →</div>
+          </Link>
+        ))}
+      </div>
+
+      {/* 英語應用能力：横向强调卡 */}
+      {appliedStage && (
+        <div style={{ marginTop: 14 }}>
+          <Link
+            href={appliedStage.href}
+            style={{
+              ...card,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "18px 18px",
+              border: "1px dashed #ccc",
+            }}
+          >
+            <div>
+              <h2 style={{ ...cardTitle, fontSize: 20 }}>
+                {appliedStage.label}
+              </h2>
+              <div style={{ ...cardMeta, fontSize: 14 }}>
+                {appliedStage.sub}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 14, opacity: 0.8 }}>→</div>
+          </Link>
+        </div>
+      )}
+    </>
   );
 }
