@@ -1,22 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
 import {
   listSessions,
   removeSession,
   setActiveSessionId,
   formatTime,
-  PracticeSession
+  PracticeSession,
+  createSession,
 } from "../../lib/session";
 
-const wrap: React.CSSProperties = { display: "grid", gap: 12 };
+/* ================= 基础样式 ================= */
+
+const wrap: React.CSSProperties = {
+  maxWidth: 1100,
+  margin: "0 auto",
+  padding: "12px 0",
+};
 
 const card: React.CSSProperties = {
   padding: "16px 14px",
   borderRadius: 18,
   border: "1px solid #e6e6e6",
-  background: "#fff"
+  background: "#fff",
 };
 
 const row: React.CSSProperties = {
@@ -24,7 +32,7 @@ const row: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
   alignItems: "center",
-  justifyContent: "space-between"
+  justifyContent: "space-between",
 };
 
 const pill: React.CSSProperties = {
@@ -33,7 +41,7 @@ const pill: React.CSSProperties = {
   border: "1px solid #ededed",
   background: "#fafafa",
   fontWeight: 900,
-  fontSize: 13
+  fontSize: 13,
 };
 
 const btn: React.CSSProperties = {
@@ -41,80 +49,112 @@ const btn: React.CSSProperties = {
   borderRadius: 14,
   border: "1px solid #e5e5e5",
   background: "#fff",
-  fontWeight: 900,
-  cursor: "pointer"
+  cursor: "pointer",
 };
 
 const btnPrimary: React.CSSProperties = {
   ...btn,
-  border: "1px solid #111"
+  background: "#111",
+  color: "#fff",
+  border: "1px solid #111",
 };
 
-export default function PracticeHubPage() {
+/* ================= 页面本体 ================= */
+
+export default function PracticePage() {
   const router = useRouter();
-  const [items, setItems] = useState<PracticeSession[]>([]);
+  const sp = useSearchParams();
 
-  function refresh() {
-    setItems(listSessions());
-  }
+  const [sessions, setSessions] = useState<PracticeSession[]>([]);
 
+  /* ====== 读取 URL 参数 ====== */
+  const subject = sp.get("subject");
+  const stage = sp.get("stage");
+
+  /* ====== 初始化：如果有 subject，就确保有进度 ====== */
   useEffect(() => {
-    refresh();
-  }, []);
+    // 1️⃣ 先读现有进度
+    const all = listSessions();
+    setSessions(all);
 
-  function resume(s: PracticeSession) {
-    setActiveSessionId(s.id);
-    router.push(`/practice/session?id=${encodeURIComponent(s.id)}`);
-  }
+    // 2️⃣ 如果是从「阶段卡」进来的
+    if (subject) {
+      // 是否已经有同科目的未完成进度
+      const exist = all.find(
+        (s) => s.subject === subject && !s.finished
+      );
 
-  function clearOne(s: PracticeSession) {
-    removeSession(s.id);
-    refresh();
-  }
+      if (exist) {
+        setActiveSessionId(exist.id);
+        router.replace(`/practice/session?id=${exist.id}`);
+        return;
+      }
+
+      // 3️⃣ 没有就新建一个（v1：不管 stage，只记录）
+      const created = createSession(subject as any);
+      setActiveSessionId(created.id);
+      router.replace(`/practice/session?id=${created.id}`);
+    }
+  }, [subject, stage, router]);
+
+  /* ================= UI ================= */
 
   return (
-    <main>
-      <h1 style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 900 }}>學習區</h1>
-      <p style={{ margin: "0 0 14px", opacity: 0.75, lineHeight: 1.7 }}>
-        這裡只負責「續做」：你可以同時有多個科目的進度，隨時切換繼續或清除。
-      </p>
+    <main style={wrap}>
+      <div style={card}>
+        <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>
+          學習區
+        </div>
+        <div style={{ opacity: 0.7, fontSize: 14 }}>
+          這裡只負責「續做」：你可以同時有多個科目的進度，隨時切換或清除。
+        </div>
+      </div>
 
-      {items.length === 0 ? (
+      <div style={{ height: 12 }} />
+
+      {sessions.length === 0 ? (
         <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>目前沒有未完成進度</div>
-          <div style={{ opacity: 0.75, lineHeight: 1.7 }}>
-            之後你會從「英文/數學/其他」選擇階段後開始作答，進度就會出現在這裡。
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>
+            目前沒有未完成進度
+          </div>
+          <div style={{ opacity: 0.7, fontSize: 14 }}>
+            之後你會從「英文 / 數學 / 其他」選擇階段後開始作答，進度就會出現在這裡。
           </div>
         </div>
       ) : (
-        <div style={wrap}>
-          {items.map((s) => (
-            <div key={s.id} style={card}>
-              <div style={row}>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>{s.subject} 進度</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span style={pill}>第 {s.currentIndex + 1} 題 / {((s as any).totalQuestions ?? (s as any).total ?? (s as any).questionCount ?? (s as any).questions?.length ?? 0)}</span>
-                  <span style={pill}>⏱ {formatTime(s.elapsedSec)}</span>
-                  <span style={pill}>對：{((s as any).correct ?? (s as any).correctCount ?? (s as any).right ?? (s as any).答對數 ?? 0)} / 錯：{((s as any).wrong ?? (s as any).wrongCount ?? (s as any).incorrect ?? (s as any).答錯數 ?? 0)}</span>
-                  <span style={pill}>提示：{Math.max(0, s.hintLimit - s.hintUsed)}/{s.hintLimit}</span>
-                </div>
+        sessions.map((s) => (
+          <div key={s.id} style={{ ...card, marginBottom: 10 }}>
+            <div style={row}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span style={pill}>科目：{s.subject}</span>
+                <span style={pill}>第 {s.currentIndex + 1} 題</span>
+                <span style={pill}>⏱ {formatTime(s.elapsedSec)}</span>
               </div>
 
-              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button style={btnPrimary} onClick={() => resume(s)}>
-                  繼續 →
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  style={btnPrimary}
+                  onClick={() => {
+                    setActiveSessionId(s.id);
+                    router.push(`/practice/session?id=${s.id}`);
+                  }}
+                >
+                  繼續
                 </button>
-                <button style={btn} onClick={() => clearOne(s)}>
+
+                <button
+                  style={btn}
+                  onClick={() => {
+                    removeSession(s.id);
+                    setSessions(listSessions());
+                  }}
+                >
                   清除
                 </button>
               </div>
-
-              <div style={{ marginTop: 10, opacity: 0.55, fontSize: 12 }}>
-                進度ID：{s.id}
-              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))
       )}
     </main>
   );
