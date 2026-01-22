@@ -54,7 +54,13 @@ function normalizeSubject(input?: string) {
   return s;
 }
 
-export default function PracticeClient({ subject, stage }: Props) {
+export default function PracticeClient({
+  subject,
+  stage,
+}: {
+  subject?: string;
+  stage?: string;
+}) {
   const router = useRouter();
 
   const subj = useMemo(() => normalizeSubject(subject), [subject]);
