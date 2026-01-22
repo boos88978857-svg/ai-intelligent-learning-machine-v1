@@ -3,7 +3,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
+import { Question, 取一回合 } from "../../../lib/questions";
 import Whiteboard from "../../components/Whiteboard";
 
 import {
@@ -52,7 +52,7 @@ export default function SessionClient() {
   const sp = useSearchParams();
 
   const [session, setSession] = useState<PracticeSession | null>(null);
-
+const [questions, setQuestions] = useState<Question[]>([]);
   /* ===== UI 狀態 ===== */
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
