@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Whiteboard from "../../components/Whiteboard";
 
 import {
-  // ✅ 用中文别名（lib/session.ts 已保证存在）
   取得目前進度id,
   設定目前進度id,
   讀取進度,
@@ -19,9 +18,10 @@ import {
   type Subject,
 } from "../../../lib/session";
 
+/* ================== 樣式 ================== */
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
 const card: React.CSSProperties = {
-  padding: "14px 14px",
+  padding: "14px",
   borderRadius: 18,
   background: "#fff",
   border: "1px solid #e6e6e6",
@@ -47,24 +47,24 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
-function pickSubjectLabel(s: Subject) {
-  return s;
-}
-
 export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
   const [session, setSession] = useState<PracticeSession | null>(null);
 
-  // UI
+  /* ===== UI 狀態 ===== */
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
 
+  /* ✅ Step 2-2（1/2）：作答 state（只新增，不影響原本功能） */
+  const [textAnswer, setTextAnswer] = useState("");
+  const [submitted, setSubmitted] = useState<string | null>(null);
+
   const timerRef = useRef<number | null>(null);
 
-  // 读取 session：优先 URL ?id= 否则读 active id
+  /* ===== 讀取進度 ===== */
   useEffect(() => {
     const idFromUrl = sp.get("id");
     const id = idFromUrl || 取得目前進度id();
@@ -74,7 +74,6 @@ export default function SessionClient() {
     }
 
     設定目前進度id(id);
-
     const s = 讀取進度(id);
     if (!s) {
       router.replace("/practice");
@@ -86,7 +85,7 @@ export default function SessionClient() {
     setMsg(null);
   }, [router, sp]);
 
-  // 计时：非暂停才跑
+  /* ===== 計時 ===== */
   useEffect(() => {
     if (!session) return;
 
@@ -131,166 +130,13 @@ export default function SessionClient() {
     const next = { ...session, hintUsed: session.hintUsed + 1 };
     寫入進度(next);
     setSession(next);
-
-    // v1 demo：先给一个固定提示
-    setHintText("提示：先把題目拆成兩步，先找關鍵字，再計算/判斷。");
-  }
-
-  function clearThis() {
-    if (!session) return;
-    刪除進度(session.id);
-    setMsg(`已清除此回合：${pickSubjectLabel(session.subject)}`);
-    router.replace("/practice");
-  }
-
-  function ensureSessionOrCreate(subject: Subject) {
-    // 给你一个快速建立进度的入口（测试用）
-    const s = 新增進度(subject);
-    寫入進度(s);
-    設定目前進度id(s.id);
-    router.replace(`/practice/session?id=${encodeURIComponent(s.id)}`);
+    setHintText("提示：請先找出題目的關鍵字，再思考解法。");
   }
 
   if (!session) {
     return (
       <main style={wrap}>
-        <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 10 }}>讀取中…</div>
-          <div style={{ opacity: 0.7, fontSize: 13 }}>若一直停在這裡，請回到 /practice 重新進入。</div>
-        </div>
-
-        <div style={{ height: 10 }} />
-
-        <div style={card}>
-          <div style={{ fontWeight: 900, marginBottom: 10 }}>快速建立測試進度（可忽略）</div>
-          <div style={row}>
-            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("英文")}>建立 英文</button>
-            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("數學")}>建立 數學</button>
-            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("其他")}>建立 其他</button>
-          </div>
-        </div>
+        <div style={card}>讀取中…</div>
       </main>
     );
   }
-
-  return (
-    <main style={wrap}>
-      {/* 顶部状态 */}
-      <div style={card}>
-        <div style={{ ...row, justifyContent: "space-between" }}>
-          <div style={row}>
-            <span style={pill}>科目：{pickSubjectLabel(session.subject)}</span>
-            <span style={pill}>第 {session.currentIndex + 1} 題</span>
-            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
-            <span style={pill}>對：{session.correctCount} / 錯：{session.wrongCount}</span>
-            <span style={pill}>提示：{session.hintUsed}/{session.hintLimit}</span>
-          </div>
-
-          <div style={row}>
-            <button onClick={togglePause} style={btn}>
-              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-            </button>
-            <button onClick={() => router.replace("/practice")} style={btn}>
-              ← 回上一頁
-            </button>
-          </div>
-        </div>
-
-        {session.paused ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
-            已暫停；按「繼續」後再作答。
-          </div>
-        ) : null}
-      </div>
-
-      <div style={{ height: 10 }} />
-
-      {/* 提示区 */}
-      <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 10 }}>提示</div>
-
-        <div style={row}>
-          <button onClick={onHint} disabled={!canHint} style={{ ...btn, opacity: canHint ? 1 : 0.5 }}>
-            顯示提示
-          </button>
-
-          {/* ✅ 你刚贴的涂鸦按钮应该在这里（操作按钮区） */}
-          <button style={btn} onClick={() => setWhiteboardOpen(true)}>
-            📝 涂鸦墙
-          </button>
-        </div>
-
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px dashed #e0e0e0" }}>
-          {hintText ? (
-            <div style={{ lineHeight: 1.8 }}>{hintText}</div>
-          ) : (
-            <div style={{ opacity: 0.7, lineHeight: 1.8 }}>
-              點「顯示提示」後會顯示提示內容（答對前會停留）。
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ height: 10 }} />
-
-      {/* 作答区（v1 demo） */}
-      <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 10 }}>作答區（v1 範例）</div>
-        <div style={{ opacity: 0.7, lineHeight: 1.8 }}>
-          這裡是 v1 的最小可跑版本。後續你要的題庫/AI 出題/判分，我們再逐步加回去。
-        </div>
-
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            style={btnPrimary}
-            onClick={() => {
-              const next = { ...session, correctCount: session.correctCount + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("已記錄：答對 +1");
-            }}
-          >
-            模擬答對
-          </button>
-
-          <button
-            style={btn}
-            onClick={() => {
-              const next = { ...session, wrongCount: session.wrongCount + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("已記錄：答錯 +1");
-            }}
-          >
-            模擬答錯
-          </button>
-
-          <button
-            style={btn}
-            onClick={() => {
-              const next = { ...session, currentIndex: session.currentIndex + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("已前進下一題");
-            }}
-          >
-            下一題 →
-          </button>
-
-          <button style={btn} onClick={clearThis}>
-            清除此回合
-          </button>
-        </div>
-
-        {msg ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>
-            {msg}
-          </div>
-        ) : null}
-      </div>
-
-      {/* ✅ Whiteboard 本体：必须放在 </main> 之前（你贴 460 行那种位置就对） */}
-      <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
-    </main>
-  );
-}
