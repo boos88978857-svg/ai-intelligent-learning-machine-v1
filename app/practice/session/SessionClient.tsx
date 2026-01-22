@@ -81,6 +81,7 @@ const [questions, setQuestions] = useState<Question[]>([]);
     }
 
     setSession(s);
+setQuestions(取一回合(s.subject));
     setHintText(null);
     setMsg(null);
   }, [router, sp]);
