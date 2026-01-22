@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // ✅ 不用具名 import，避免“未导出成员”导致编译失败
@@ -84,7 +84,7 @@ function getFns() {
     anyS.格式化時間 ||
     ((sec: number) => `${sec}s`);
 
-  // ✅ 关键：创建 session 的函数名兼容
+  // ✅ 创建 session 的函数名兼容
   const create =
     anyS.createSession ||
     anyS.newSession ||
@@ -94,9 +94,30 @@ function getFns() {
   return { listSessions, removeSession, setActiveSessionId, formatTime, create };
 }
 
-/* ================= 页面本体 ================= */
+/* ================= 外层：只负责 Suspense（解决 useSearchParams build 报错） ================= */
 
 export default function PracticePage() {
+  return (
+    <Suspense fallback={<PracticeLoading />}>
+      <PracticeInner />
+    </Suspense>
+  );
+}
+
+function PracticeLoading() {
+  return (
+    <main style={wrap}>
+      <div style={card}>
+        <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>學習區</div>
+        <div style={{ opacity: 0.7, fontSize: 14 }}>讀取中…</div>
+      </div>
+    </main>
+  );
+}
+
+/* ================= 内层：真正用 useSearchParams 的页面逻辑 ================= */
+
+function PracticeInner() {
   const router = useRouter();
   const sp = useSearchParams();
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
@@ -112,7 +133,6 @@ export default function PracticePage() {
 
     // ✅ 从“阶段卡”进来：/practice?subject=英文&stage=A1
     if (subject) {
-      // 找这个科目的“未完成进度”
       const exist = all.find((s: any) => s?.subject === subject && !s?.finished);
 
       if (exist) {
@@ -121,10 +141,7 @@ export default function PracticePage() {
         return;
       }
 
-      // 没有就新建一个（stage 暂时只当参数保留）
       if (!create) {
-        // 如果这里触发，说明 lib/session 里没有任何“创建进度”函数
-        // 你把这行错误截图发我，我会按你现有 lib/session 直接改名对齐
         console.error("lib/session 找不到 createSession / newSession / 新增進度 / 建立新進度");
         return;
       }
