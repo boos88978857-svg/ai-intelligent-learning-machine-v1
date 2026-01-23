@@ -65,19 +65,18 @@ function pickSubjectLabel(s: Subject) {
   return s;
 }
 
+type SessionAny = PracticeSession & { lastAnsweredIndex?: number; stage?: string };
+
 export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const [session, setSession] = useState<PracticeSession | null>(null);
+  const [session, setSession] = useState<SessionAny | null>(null);
 
   // UI
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
-
-  // ✅ 行為鎖定：本題是否已作答（答對/答錯任一）？
-  const [answeredThisQuestion, setAnsweredThisQuestion] = useState(false);
 
   const timerRef = useRef<number | null>(null);
 
@@ -93,23 +92,25 @@ export default function SessionClient() {
 
     設定目前進度id(id);
 
-    const s = 讀取進度(id);
-    if (!s) {
+    const s0 = 讀取進度(id) as SessionAny | null;
+    if (!s0) {
       router.replace("/practice");
       return;
     }
 
+    // ✅ 確保有 lastAnsweredIndex（持久化判斷作答用）
+    const s: SessionAny = {
+      ...s0,
+      lastAnsweredIndex: typeof s0.lastAnsweredIndex === "number" ? s0.lastAnsweredIndex : -1,
+    };
+
+    // 可選：寫回去，避免之後又缺欄位
+    寫入進度(s);
+
     setSession(s);
     setHintText(null);
     setMsg(null);
-    setAnsweredThisQuestion(false);
   }, [router, sp]);
-
-  /* ✅ 題號一變（進入新題），強制視為未作答 */
-  useEffect(() => {
-    if (!session) return;
-    setAnsweredThisQuestion(false);
-  }, [session?.id, session?.currentIndex]);
 
   /* ================= 計時（非暫停才跑） ================= */
   useEffect(() => {
@@ -123,7 +124,7 @@ export default function SessionClient() {
     timerRef.current = window.setInterval(() => {
       setSession((prev) => {
         if (!prev) return prev;
-        const next = { ...prev, elapsedSec: prev.elapsedSec + 1 };
+        const next: SessionAny = { ...prev, elapsedSec: prev.elapsedSec + 1 };
         寫入進度(next);
         return next;
       });
@@ -140,10 +141,20 @@ export default function SessionClient() {
     return session.hintUsed < session.hintLimit;
   }, [session]);
 
+  const actionLocked = !!session?.paused;
+
+  // ✅ 核心規則：只有「本題已作答」才允許下一題
+  const answeredThisQuestion = useMemo(() => {
+    if (!session) return false;
+    return (session.lastAnsweredIndex ?? -1) === session.currentIndex;
+  }, [session]);
+
+  const canGoNext = !actionLocked && answeredThisQuestion;
+
   /* ================= 操作函式 ================= */
   function togglePause() {
     if (!session) return;
-    const next = { ...session, paused: !session.paused };
+    const next: SessionAny = { ...session, paused: !session.paused };
     寫入進度(next);
     setSession(next);
   }
@@ -156,7 +167,7 @@ export default function SessionClient() {
       return;
     }
 
-    const next = { ...session, hintUsed: session.hintUsed + 1 };
+    const next: SessionAny = { ...session, hintUsed: session.hintUsed + 1 };
     寫入進度(next);
     setSession(next);
 
@@ -175,17 +186,12 @@ export default function SessionClient() {
   }
 
   function ensureSessionOrCreate(subject: Subject) {
-    const s = 新增進度(subject);
-    寫入進度(s);
-    設定目前進度id(s.id);
-    router.replace(`/practice/session?id=${encodeURIComponent(s.id)}`);
+    const s = 新增進度(subject) as SessionAny;
+    const next: SessionAny = { ...s, lastAnsweredIndex: -1 };
+    寫入進度(next);
+    設定目前進度id(next.id);
+    router.replace(`/practice/session?id=${encodeURIComponent(next.id)}`);
   }
-
-  // ✅ 暫停時鎖住作答與前進
-  const actionLocked = !!session?.paused;
-
-  // ✅ 必須先作答才可下一題
-  const canGoNext = !actionLocked && answeredThisQuestion;
 
   /* ================= 空狀態 ================= */
   if (!session) {
@@ -224,7 +230,7 @@ export default function SessionClient() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
             <span style={pill}>科目：{session.subject}</span>
-            <span style={pill}>階段：{(session as any).stage ?? "-"}</span>
+            <span style={pill}>階段：{session.stage ?? "-"}</span>
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
           </div>
 
@@ -295,10 +301,13 @@ export default function SessionClient() {
             disabled={actionLocked}
             onClick={() => {
               if (actionLocked) return;
-              const next = { ...session, correctCount: (session.correctCount ?? 0) + 1 };
+              const next: SessionAny = {
+                ...session,
+                correctCount: (session.correctCount ?? 0) + 1,
+                lastAnsweredIndex: session.currentIndex, // ✅ 記錄本題已作答
+              };
               寫入進度(next);
               setSession(next);
-              setAnsweredThisQuestion(true);
               setMsg("已記錄：答對。現在可以點「下一題」。");
             }}
           >
@@ -310,10 +319,13 @@ export default function SessionClient() {
             disabled={actionLocked}
             onClick={() => {
               if (actionLocked) return;
-              const next = { ...session, wrongCount: (session.wrongCount ?? 0) + 1 };
+              const next: SessionAny = {
+                ...session,
+                wrongCount: (session.wrongCount ?? 0) + 1,
+                lastAnsweredIndex: session.currentIndex, // ✅ 記錄本題已作答
+              };
               寫入進度(next);
               setSession(next);
-              setAnsweredThisQuestion(true);
               setMsg("已記錄：答錯。現在可以點「下一題」。");
             }}
           >
@@ -324,21 +336,23 @@ export default function SessionClient() {
             style={{ ...btn, opacity: canGoNext ? 1 : 0.5 }}
             disabled={!canGoNext}
             onClick={() => {
-              // ✅ 雙重保險：就算某些環境 disabled 還能點，也不會前進
-              if (!answeredThisQuestion) {
-                setMsg("本題尚未作答，請先「模擬答對 / 模擬答錯」再前進。");
-                return;
-              }
+              // ✅ 雙重保險
               if (actionLocked) {
                 setMsg("目前已暫停，請先按「繼續」再前進下一題。");
                 return;
               }
+              if ((session.lastAnsweredIndex ?? -1) !== session.currentIndex) {
+                setMsg("本題尚未作答，請先「模擬答對 / 模擬答錯」再前進。");
+                return;
+              }
 
-              const next = { ...session, currentIndex: session.currentIndex + 1 };
+              const next: SessionAny = {
+                ...session,
+                currentIndex: session.currentIndex + 1,
+                // ✅ 注意：不要改 lastAnsweredIndex，讓下一題立刻鎖住
+              };
               寫入進度(next);
               setSession(next);
-
-              // ✅ 注意：answeredThisQuestion 會由 useEffect([currentIndex]) 自動重置
               setMsg("已前進下一題");
             }}
           >
