@@ -55,13 +55,6 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
-// ✅ 让「暂停/继续」长得像 pill，但可点击
-const pillBtn: React.CSSProperties = {
-  ...pill,
-  cursor: "pointer",
-  background: "#f3f3f3",
-};
-
 function pickSubjectLabel(s: Subject) {
   return s;
 }
@@ -76,10 +69,18 @@ export default function SessionClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
-  // v2-8-2：行为锁定（暂停/是否可前进）
+
+  // v2-8-2：行為鎖定（暫停/是否可前進）
   const [lastAnswer, setLastAnswer] = useState<null | "correct" | "wrong">(null);
-  const canAdvance = !!session && !session.paused && lastAnswer === "correct";
+
   const timerRef = useRef<number | null>(null);
+
+  const canHint = useMemo(() => {
+    if (!session) return false;
+    return session.hintUsed < session.hintLimit;
+  }, [session]);
+
+  const canAdvance = !!session && !session.paused && lastAnswer === "correct";
 
   /* ================= 讀取進度 ================= */
   useEffect(() => {
@@ -129,11 +130,6 @@ export default function SessionClient() {
     };
   }, [session?.id, session?.paused]);
 
-  const canHint = useMemo(() => {
-    if (!session) return false;
-    return session.hintUsed < session.hintLimit;
-  }, [session]);
-
   /* ================= 操作函式 ================= */
   function togglePause() {
     if (!session) return;
@@ -154,6 +150,7 @@ export default function SessionClient() {
     寫入進度(next);
     setSession(next);
 
+    // demo：固定提示（後續換成題庫/AI）
     setHintText("提示：先把題目拆成兩步，先找關鍵字，再計算/判斷。");
   }
 
@@ -165,11 +162,12 @@ export default function SessionClient() {
   }
 
   function backToPractice() {
-    // ✅ 不带任何 query，避免闪跳
+    // ✅ 不帶參數，避免觸發自動建進度造成閃跳
     router.replace("/practice");
   }
 
   function ensureSessionOrCreate(subject: Subject) {
+    // 測試用：快速建立進度（可忽略）
     const s = 新增進度(subject);
     寫入進度(s);
     設定目前進度id(s.id);
@@ -190,15 +188,9 @@ export default function SessionClient() {
         <div style={card}>
           <div style={{ fontWeight: 900, marginBottom: 10 }}>快速建立測試進度（可忽略）</div>
           <div style={row}>
-            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("英文")}>
-              建立 英文
-            </button>
-            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("數學")}>
-              建立 數學
-            </button>
-            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("其他")}>
-              建立 其他
-            </button>
+            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("英文")}>建立 英文</button>
+            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("數學")}>建立 數學</button>
+            <button style={btnPrimary} onClick={() => ensureSessionOrCreate("其他")}>建立 其他</button>
           </div>
         </div>
       </main>
@@ -210,41 +202,31 @@ export default function SessionClient() {
     <main style={wrap}>
       {/* ===== 頂部狀態（v2-8-2 重排版）===== */}
       <div style={card}>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          {/* 左侧：科目/阶段/题号 */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {/* 第一排：科目/階段/題號 + 時間/暫停/回上一頁 */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
             <span style={pill}>科目：{session.subject}</span>
             <span style={pill}>階段：{(session as any).stage ?? "-"}</span>
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
-
-            {/* 计时 + 暂停（更省空间） */}
-            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
-            <button onClick={togglePause} style={pillBtn}>
-              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-            </button>
           </div>
 
-          {/* 右侧：回上一页 */}
-          <button style={btn} onClick={backToPractice}>
-            ← 回上一頁
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
+
+            <button
+              onClick={togglePause}
+              style={{ ...btn, opacity: session.paused ? 1 : 1 }}
+            >
+              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+            </button>
+
+            <button style={btn} onClick={backToPractice}>
+              ← 回上一頁
+            </button>
+          </div>
         </div>
 
-        {/* 暂时先保留提示计数在顶部（你要移到「提示」标题旁边，我们下一步做） */}
-        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={pill}>
-            提示：{session.hintUsed}/{session.hintLimit}
-          </span>
-        </div>
-
+        {/* 暫停提示卡 */}
         {session.paused ? (
           <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
             已暫停；按「繼續」後再作答。
@@ -256,14 +238,24 @@ export default function SessionClient() {
 
       {/* ===== 提示區 ===== */}
       <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 10 }}>提示</div>
+        <div style={{ fontWeight: 900, marginBottom: 10 }}>
+          提示（{session.hintUsed}/{session.hintLimit}）
+        </div>
 
         <div style={row}>
-          <button onClick={onHint} disabled={!canHint} style={{ ...btn, opacity: canHint ? 1 : 0.5 }}>
+          <button
+            onClick={onHint}
+            disabled={!canHint || session.paused}
+            style={{ ...btn, opacity: !canHint || session.paused ? 0.5 : 1 }}
+          >
             顯示提示
           </button>
 
-          <button style={btn} onClick={() => setWhiteboardOpen(true)}>
+          <button
+            style={{ ...btn, opacity: session.paused ? 0.5 : 1 }}
+            disabled={session.paused}
+            onClick={() => setWhiteboardOpen(true)}
+          >
             📝 涂鴉牆
           </button>
         </div>
@@ -279,79 +271,80 @@ export default function SessionClient() {
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 作答區（v1/v2 demo）===== */}
+      {/* ===== 作答區（demo）===== */}
       <div style={card}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ fontWeight: 900 }}>作答區（v1/v2 範例）</div>
-
-          {/* 先放在这里（你想移到右边“做答区文字旁”，这一步就已经在右边了） */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span style={pill}>對：{session.correctCount}</span>
-            <span style={pill}>錯：{session.wrongCount}</span>
-          </div>
+        <div style={{ fontWeight: 900, marginBottom: 10 }}>
+          作答區（v1/v2 範例）
+          <span style={{ marginLeft: 10, fontWeight: 700, fontSize: 12, opacity: 0.75 }}>
+            對：{session.correctCount} / 錯：{session.wrongCount}
+          </span>
         </div>
 
-        <div style={{ opacity: 0.7, lineHeight: 1.8, marginTop: 8 }}>
-          這裡是最小可跑版本。後續你要的「選擇題/填空/應用題」會在 v3 題型系統逐步補上。
+        <div style={{ opacity: 0.7, lineHeight: 1.8 }}>
+          這裡是最小可跑版本。後續「選擇題/填空/應用題」會在 v3 題型系統補上。
         </div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "<button
-  style={{ ...btnPrimary, opacity: session.paused ? 0.5 : 1 }}
-  disabled={session.paused}
-  onClick={() => {
-    if (session.paused) return;
-    const next = { ...session, correctCount: session.correctCount + 1 };
-    寫入進度(next);
-    setSession(next);
-    setLastAnswer("correct");
-    setMsg("答對了！請繼續下一題。");
-  }}
->
-  模擬答對
-</button>
+        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            style={{ ...btnPrimary, opacity: session.paused ? 0.5 : 1 }}
+            disabled={session.paused}
+            onClick={() => {
+              if (session.paused) return;
+              const next = { ...session, correctCount: session.correctCount + 1 };
+              寫入進度(next);
+              setSession(next);
+              setLastAnswer("correct");
+              setMsg("答對了！請繼續下一題。");
+            }}
+          >
+            模擬答對
+          </button>
 
           <button
-  style={{ ...btn, opacity: session.paused ? 0.5 : 1 }}
-  disabled={session.paused}
-  onClick={() => {
-    if (session.paused) return;
-    const next = { ...session, wrongCount: session.wrongCount + 1 };
-    寫入進度(next);
-    setSession(next);
-    setLastAnswer("wrong");
-    setMsg("很可惜沒有答對，請再試一次。");
-  }}
->
-  模擬答錯
-</button>
+            style={{ ...btn, opacity: session.paused ? 0.5 : 1 }}
+            disabled={session.paused}
+            onClick={() => {
+              if (session.paused) return;
+              const next = { ...session, wrongCount: session.wrongCount + 1 };
+              寫入進度(next);
+              setSession(next);
+              setLastAnswer("wrong");
+              setMsg("很可惜沒有答對，請再試一次。");
+            }}
+          >
+            模擬答錯
+          </button>
 
           <button
-  style={{ ...btn, opacity: canAdvance ? 1 : 0.5 }}
-  disabled={!canAdvance}
-  onClick={() => {
-    if (!canAdvance) return;
-    const next = { ...session, currentIndex: session.currentIndex + 1 };
-    寫入進度(next);
-    setSession(next);
-    setLastAnswer(null); // 进入下一题先清空
-    setMsg(null);
-  }}
->
-  下一題 →
-</button>
+            style={{ ...btn, opacity: canAdvance ? 1 : 0.5 }}
+            disabled={!canAdvance}
+            onClick={() => {
+              if (!canAdvance) return;
+              const next = { ...session, currentIndex: session.currentIndex + 1 };
+              寫入進度(next);
+              setSession(next);
+              setLastAnswer(null);
+              setMsg(null);
+              setHintText(null);
+            }}
+          >
+            下一題 →
+          </button>
 
-          {/* 你后面说要拿掉「清除此回合」，现在先保留，下一阶段我们再移除 */}
-          <button style={btn} onClick={clearThis}>
+          {/* 這顆按鈕你說後續要移除（改到學習區清除），目前先保留不影響 */}
+          <button style={{ ...btn, opacity: session.paused ? 0.5 : 1 }} disabled={session.paused} onClick={clearThis}>
             清除此回合
           </button>
         </div>
 
         {msg ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>{msg}</div>
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>
+            {msg}
+          </div>
         ) : null}
       </div>
 
-      {/* ✅ Whiteboard 本體：必須在 </main> 之前 */}
+      {/* Whiteboard 本體：必須在 </main> 前 */}
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
     </main>
   );
