@@ -31,11 +31,13 @@ const card: React.CSSProperties = {
 const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" };
 
 const pill: React.CSSProperties = {
-  padding: "6px 10px",
+  padding: "4px 8px",        // 更薄
   borderRadius: 999,
   border: "1px solid #e6e6e6",
   background: "#fafafa",
-  fontSize: 13,
+  fontSize: 12,              // 字小一点
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",      // 防止自动断行
 };
 
 const btn: React.CSSProperties = {
