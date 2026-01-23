@@ -191,30 +191,43 @@ export default function SessionClient() {
 
   return (
     <main style={wrap}>
-      {/* ===== 顶部状态 ===== */}
-      <div style={card}>
-        <div style={{ ...row, justifyContent: "space-between" }}>
-          <div style={row}>
-            <span style={pill}>科目：{session.subject}</span>
-            <span style={pill}>階段：{session.stage ?? "-"}</span>
-            <span style={pill}>第 {session.currentIndex + 1} 題</span>
-            <span style={pill}>⏱ {formatTime(session.elapsedSec)}</span>
-            <span style={pill}>
-              對：{session.correctCount} / 錯：{session.wrongCount}
-            </span>
-            <span style={pill}>
-              提示：{session.hintUsed}/{session.hintLimit}
-            </span>
-          </div>
+     {/* ===== 頂部狀態（v2-8-1 瘦身版）===== */}
+<div style={card}>
+  {/* 上排：科目/階段/題號（盡量同一行） */}
+  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
+      <span style={pill}>科目：{session.subject}</span>
+      <span style={pill}>階段：{(session as any).stage ?? "-"}</span>
+      <span style={pill}>第 {session.currentIndex + 1} 題</span>
+    </div>
 
-          <div style={row}>
-            <button style={btn} onClick={togglePause}>
-              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-            </button>
-            <button style={btn} onClick={backToPractice}>
-              ← 回上一頁
-            </button>
-          </div>
+    {/* 右側：時間 + 暫停 + 回上一頁 */}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
+
+      <button onClick={togglePause} style={btn}>
+        {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+      </button>
+
+      <button style={btn} onClick={backToPractice}>
+        ← 回上一頁
+      </button>
+    </div>
+  </div>
+
+  {/* 下排：提示（把 0/3 放到「提示」旁邊） */}
+  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+    <span style={pill}>
+      提示：{session.hintUsed}/{session.hintLimit}
+    </span>
+  </div>
+
+  {session.paused ? (
+    <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
+      已暫停；按「繼續」後再作答。
+    </div>
+  ) : null}
+</div>
         </div>
 
         {session.paused && (
