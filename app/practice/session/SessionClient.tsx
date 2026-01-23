@@ -102,8 +102,14 @@ export default function SessionClient() {
     setSession(s);
     setHintText(null);
     setMsg(null);
-    setAnsweredThisQuestion(false); // ✅ 新進入本頁，先視為未作答
+    setAnsweredThisQuestion(false);
   }, [router, sp]);
+
+  /* ✅ 題號一變（進入新題），強制視為未作答 */
+  useEffect(() => {
+    if (!session) return;
+    setAnsweredThisQuestion(false);
+  }, [session?.id, session?.currentIndex]);
 
   /* ================= 計時（非暫停才跑） ================= */
   useEffect(() => {
@@ -140,7 +146,6 @@ export default function SessionClient() {
     const next = { ...session, paused: !session.paused };
     寫入進度(next);
     setSession(next);
-    // 暫停/繼續不改變 answeredThisQuestion
   }
 
   function onHint() {
@@ -217,14 +222,12 @@ export default function SessionClient() {
       {/* ===== 頂部狀態 ===== */}
       <div style={card}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-          {/* 左側：科目/階段/題號 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
             <span style={pill}>科目：{session.subject}</span>
             <span style={pill}>階段：{(session as any).stage ?? "-"}</span>
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
           </div>
 
-          {/* 右側：時間+暫停 合併膠囊 + 回上一頁 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
             <button onClick={togglePause} style={pillBtn}>
               ⏱ {格式化時間(session.elapsedSec)}　|　{session.paused ? "▶ 繼續" : "⏸ 暫停"}
@@ -243,12 +246,6 @@ export default function SessionClient() {
           {actionLocked ? <span style={pill}>已暫停：作答/下一題已鎖定</span> : null}
           {!actionLocked && !answeredThisQuestion ? <span style={pill}>本題未作答：請先答對/答錯一次</span> : null}
         </div>
-
-        {session.paused ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
-            已暫停；按「繼續」後再作答。
-          </div>
-        ) : null}
       </div>
 
       <div style={{ height: 10 }} />
@@ -286,7 +283,6 @@ export default function SessionClient() {
         </div>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {/* ✅ 對/錯顯示（先保留簡單） */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
             <span style={pill}>對：{session.correctCount ?? 0}</span>
             <span style={pill}>錯：{session.wrongCount ?? 0}</span>
@@ -298,10 +294,11 @@ export default function SessionClient() {
             style={{ ...btnPrimary, opacity: actionLocked ? 0.5 : 1 }}
             disabled={actionLocked}
             onClick={() => {
+              if (actionLocked) return;
               const next = { ...session, correctCount: (session.correctCount ?? 0) + 1 };
               寫入進度(next);
               setSession(next);
-              setAnsweredThisQuestion(true); // ✅ 已作答
+              setAnsweredThisQuestion(true);
               setMsg("已記錄：答對。現在可以點「下一題」。");
             }}
           >
@@ -312,10 +309,11 @@ export default function SessionClient() {
             style={{ ...btn, opacity: actionLocked ? 0.5 : 1 }}
             disabled={actionLocked}
             onClick={() => {
+              if (actionLocked) return;
               const next = { ...session, wrongCount: (session.wrongCount ?? 0) + 1 };
               寫入進度(next);
               setSession(next);
-              setAnsweredThisQuestion(true); // ✅ 已作答
+              setAnsweredThisQuestion(true);
               setMsg("已記錄：答錯。現在可以點「下一題」。");
             }}
           >
@@ -326,11 +324,12 @@ export default function SessionClient() {
             style={{ ...btn, opacity: canGoNext ? 1 : 0.5 }}
             disabled={!canGoNext}
             onClick={() => {
+              // ✅ 雙重保險：就算某些環境 disabled 還能點，也不會前進
               if (!answeredThisQuestion) {
                 setMsg("本題尚未作答，請先「模擬答對 / 模擬答錯」再前進。");
                 return;
               }
-              if (session.paused) {
+              if (actionLocked) {
                 setMsg("目前已暫停，請先按「繼續」再前進下一題。");
                 return;
               }
@@ -339,8 +338,7 @@ export default function SessionClient() {
               寫入進度(next);
               setSession(next);
 
-              // ✅ 進入新題後重置
-              setAnsweredThisQuestion(false);
+              // ✅ 注意：answeredThisQuestion 會由 useEffect([currentIndex]) 自動重置
               setMsg("已前進下一題");
             }}
           >
@@ -350,15 +348,16 @@ export default function SessionClient() {
           <button
             style={{ ...btn, opacity: actionLocked ? 0.5 : 1 }}
             disabled={actionLocked}
-            onClick={clearThis}
+            onClick={() => {
+              if (actionLocked) return;
+              clearThis();
+            }}
           >
             清除此回合
           </button>
         </div>
 
-        {msg ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>{msg}</div>
-        ) : null}
+        {msg ? <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>{msg}</div> : null}
       </div>
 
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
