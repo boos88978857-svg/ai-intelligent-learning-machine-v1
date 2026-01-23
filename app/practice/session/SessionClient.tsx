@@ -280,6 +280,19 @@ export default function SessionClient() {
           這裡是最小可跑版本。後續你要的「選擇題/填空/應用題」會在 v3 題型系統逐步補上。
         </div>
 
+<div
+  style={{
+    marginTop: 10,
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap",
+  }}
+>
+  <span style={pill}>對：{session.correctCount}</span>
+  <span style={pill}>錯：{session.wrongCount}</span>
+</div>
+
         {/* ✅ v2-8-2 會把「對/錯」移到這裡並做更省空間的樣式 */}
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
