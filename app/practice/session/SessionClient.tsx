@@ -207,37 +207,37 @@ export default function SessionClient() {
   /* ================= UI ================= */
   return (
     <main style={wrap}>
-      {/* ===== 頂部狀態（瘦身版）===== */}
-      <div style={card}>
-        {/* 上排：科目/階段/題號 + 右側功能 */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
-            <span style={pill}>科目：{session.subject}</span>
-            <span style={pill}>階段：{(session as any).stage ?? "-"}</span>
-            <span style={pill}>第 {session.currentIndex + 1} 題</span>
-          </div>
+      {/* ===== 顶部状态（v2-8-2 重排版）===== */}
+<div style={card}>
+  {/* 第一排：科目 / 阶段 / 题号 / 计时 / 暂停 */}
+  <div
+    style={{
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      alignItems: "center",
+      justifyContent: "space-between",
+    }}
+  >
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <span style={pill}>科目：{session.subject}</span>
+      <span style={pill}>阶段：{(session as any).stage ?? "-"}</span>
+      <span style={pill}>第 {session.currentIndex + 1} 题</span>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
+      <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
 
-            {/* ✅ 暫停：改成 pill 造型 */}
-            <button onClick={togglePause} style={pillBtn}>
-              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-            </button>
+      {/* 暂停 / 继续：使用 pill 造型 */}
+      <button onClick={togglePause} style={pill}>
+        {session.paused ? "▶ 继续" : "⏸ 暂停"}
+      </button>
+    </div>
 
-            {/* 回上一页 */}
-            <button style={btn} onClick={backToPractice}>
-              ← 回上一頁
-            </button>
-          </div>
+    {/* 右侧：回上一页 */}
+    <button style={btn} onClick={backToPractice}>
+      ← 回上一页
+    </button>
+  </div>
+</div>
         </div>
 
         {/* 下排：提示计数（目前先保留在顶端，后续你要移到「提示」标题旁边我们再做） */}
