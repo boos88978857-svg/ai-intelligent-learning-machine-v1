@@ -222,21 +222,14 @@ export default function SessionClient() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
 
-            <button onClick={togglePause} style={btn}>
-              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-            </button>
+            <button onClick={togglePause} style={pillBtn}>
+  {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+</button>
 
             <button style={btn} onClick={backToPractice}>
               ← 回上一頁
             </button>
           </div>
-        </div>
-
-        {/* 下排：提示（把 0/3 放到「提示」旁邊） */}
-        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={pill}>
-            提示：{session.hintUsed}/{session.hintLimit}
-          </span>
         </div>
 
         {session.paused ? (
@@ -250,7 +243,10 @@ export default function SessionClient() {
 
       {/* ===== 提示區 ===== */}
       <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 10 }}>提示</div>
+  <div style={{ ...row, justifyContent: "space-between", marginBottom: 10 }}>
+    <div style={{ fontWeight: 900 }}>提示</div>
+    <span style={pill}>提示：{session.hintUsed}/{session.hintLimit}</span>
+  </div>
 
         <div style={row}>
           <button onClick={onHint} disabled={!canHint} style={{ ...btn, opacity: canHint ? 1 : 0.5 }}>
@@ -331,9 +327,7 @@ export default function SessionClient() {
             下一題 →
           </button>
 
-          <button style={btn} onClick={clearThis}>
-            清除此回合
-          </button>
+  
         </div>
 
         {msg ? (
