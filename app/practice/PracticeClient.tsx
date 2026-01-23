@@ -238,9 +238,13 @@ useEffect(() => {
                   </div>
 
                   <div style={row}>
-                    <button style={btnPrimary} onClick={() => onContinue(s.id)}>繼續</button>
-                    <button style={btn} onClick={() => onRemove(s.id)}>清除</button>
-                  </div>
+  <button
+    style={btnPrimary}
+    onClick={() => onContinue(s.id)}
+  >
+    ▶ 继续学习
+  </button>
+</div>
                 </div>
               </div>
             ))}
