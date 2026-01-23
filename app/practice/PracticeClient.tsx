@@ -242,7 +242,7 @@ useEffect(() => {
     style={btnPrimary}
     onClick={() => onContinue(s.id)}
   >
-    ▶ 继续学习
+    ▶ 继续
   </button>
 </div>
                 </div>
