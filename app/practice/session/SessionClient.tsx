@@ -179,9 +179,10 @@ function backToPractice() {
             <button onClick={togglePause} style={btn}>
               {session.paused ? "▶ 繼續" : "⏸ 暫停"}
             </button>
-            <button onClick={backToPractice} style={btn}>
-  ← 回上一頁
-</button>
+            function backToPractice() {
+  // v2-6：强制回到「纯学习区」，避免被入口参数再送回作答页
+  router.replace("/practice");
+}
           </div>
         </div>
 
