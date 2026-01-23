@@ -242,7 +242,7 @@ useEffect(() => {
     style={btnPrimary}
     onClick={() => onContinue(s.id)}
   >
-    ▶ 继续
+    ▶ 繼續
   </button>
 </div>
                 </div>
