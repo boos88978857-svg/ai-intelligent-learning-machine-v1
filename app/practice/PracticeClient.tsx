@@ -91,48 +91,74 @@ export default function PracticeClient({
     refreshSessions();
   }, []);
 
-  // v2-2 核心：带 subject+stage 就自动建进度并跳转 session
-  useEffect(() => {
-    if (!subj || !stg) return;
+// v2-5：同一 subject + stage 先复用旧进度，避免一直新增
+useEffect(() => {
+  if (!subj || !stg) return;
 
-    (async () => {
-      setLoading(true);
-      setMsg(`正在建立進度：${subj} / ${stg} ...`);
+  const stageKey = (stg ?? "").trim().toUpperCase();
 
-      try {
-        const id = await withSessionLib((m) => {
-          // 创建 session：新增進度 / createSession / newSession
-          const create =
-            m.新增進度 ||
-            m.createSession ||
-            m.newSession ||
-            m.建立新進度 ||
-            m.createNewSession;
+  (async () => {
+    setLoading(true);
+    setMsg(`正在檢查進度：${subj} / ${stageKey} ...`);
 
-          const write = m.寫入進度 || m.saveSession || m.writeSession;
-          const setActive = m.設定目前進度id || m.setActiveSessionId || m.setCurrentSessionId;
+    try {
+      const id = await withSessionLib((m) => {
+        // 兼容不同命名
+        const listFn =
+          m.listSessions ||
+          m.列出全部進度 ||
+          m.讀取全部進度 ||
+          m.getAllSessions ||
+          m.取得全部進度;
 
-          if (!create || !write || !setActive) {
-            throw new Error("lib/session 缺少必要函式（新增/寫入/設定目前id）");
-          }
+        const setActive = m.設定目前進度id || m.setActiveSessionId || m.setCurrentSessionId;
 
-          // ⚠️ 目前 session type 里可能没有 stage 字段，所以用 any 塞进去
-          const s: AnySession = create(subj);
-          s.stage = stg;
+        const create =
+          m.新增進度 ||
+          m.createSession ||
+          m.newSession ||
+          m.建立新進度 ||
+          m.createNewSession;
 
-          write(s);
-          setActive(s.id);
-          return s.id as string;
+        const write = m.寫入進度 || m.saveSession || m.writeSession;
+
+        if (!listFn || !setActive || !write || !create) {
+          throw new Error("lib/session 缺少必要函式（列出/設定目前id/寫入/新增）");
+        }
+
+        const all: AnySession[] = Array.isArray(listFn()) ? listFn() : [];
+
+        // 找「同 subject + 同 stage」的既有进度
+        // 规则：stage 可能没存过，所以要做大小写处理
+        const found = all.find((s) => {
+          const sSubj = String(s?.subject ?? "").trim();
+          const sStage = String(s?.stage ?? "").trim().toUpperCase();
+          return sSubj === subj && sStage === stageKey;
         });
 
-        // 直接进入作答页（你的 SessionClient 已能接 id）
-        router.replace(`/practice/session?id=${encodeURIComponent(id)}`);
-      } catch (e: any) {
-        setMsg(`建立失敗：${e?.message ?? String(e)}`);
-        setLoading(false);
-      }
-    })();
-  }, [subj, stg, router]);
+        // ✅ 有旧进度：直接复用
+        if (found?.id) {
+          setActive(found.id);
+          return found.id as string;
+        }
+
+        // ❌ 没有：新建一个
+        const s: AnySession = create(subj);
+        s.stage = stageKey;
+
+        write(s);
+        setActive(s.id);
+        return s.id as string;
+      });
+
+      setMsg(`已進入：${subj} / ${stageKey}`);
+      router.replace(`/practice/session?id=${encodeURIComponent(id)}`);
+    } catch (e: any) {
+      setMsg(`處理失敗：${e?.message ?? String(e)}`);
+      setLoading(false);
+    }
+  })();
+}, [subj, stg, router]);
 
   async function onContinue(id: string) {
     await withSessionLib((m) => {
