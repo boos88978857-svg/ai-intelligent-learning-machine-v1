@@ -127,6 +127,20 @@ const currentQuestion = useMemo(() => {
     setSession(next);
   }
 
+function backToPractice() {
+  // 如果 session 內有 subject/stage，就回到帶參數的學習區入口
+  const subj = session?.subject ?? "";
+  const stg = ((session as any)?.stage ?? "").toString();
+
+  if (subj && stg) {
+    router.replace(`/practice?subject=${encodeURIComponent(subj)}&stage=${encodeURIComponent(stg)}`);
+    return;
+  }
+
+  // 沒有就回一般學習區
+  router.replace("/practice");
+}
+
   function onHint() {
     if (!session) return;
     if (!canHint) {
@@ -165,9 +179,9 @@ const currentQuestion = useMemo(() => {
             <button onClick={togglePause} style={btn}>
               {session.paused ? "▶ 繼續" : "⏸ 暫停"}
             </button>
-            <button onClick={() => router.replace("/practice")} style={btn}>
-              ← 回上一頁
-            </button>
+            <button onClick={backToPractice} style={btn}>
+  ← 回上一頁
+</button>
           </div>
         </div>
 
