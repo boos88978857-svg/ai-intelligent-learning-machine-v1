@@ -286,9 +286,7 @@ export default function SessionClient() {
           </span>
 
           {/* ✅ 顯示本題狀態（方便你測試） */}
-          <span style={pill}>本題：{answered ?記 `已作答` : "未作答"}</span>
-        </div>
-
+          <span style={pill}>本題：{answered ? "已作答" : "未作答"}</span>
         {session.paused ? (
           <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
             已暫停；按「繼續」後再作答。
