@@ -31,13 +31,13 @@ const card: React.CSSProperties = {
 const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" };
 
 const pill: React.CSSProperties = {
-  padding: "4px 8px",        // 更薄
+  padding: "4px 8px", // 更薄
   borderRadius: 999,
   border: "1px solid #e6e6e6",
   background: "#fafafa",
-  fontSize: 12,              // 字小一点
+  fontSize: 12,
   lineHeight: 1.2,
-  whiteSpace: "nowrap",      // 防止自动断行
+  whiteSpace: "nowrap",
 };
 
 const btn: React.CSSProperties = {
@@ -53,6 +53,13 @@ const btnPrimary: React.CSSProperties = {
   border: "1px solid #111",
   background: "#111",
   color: "#fff",
+};
+
+// ✅ 让「暫停」看起来跟 pill 一致（你刚刚的 pillBtn 报错就是缺这个）
+const pillBtn: React.CSSProperties = {
+  ...pill,
+  cursor: "pointer",
+  userSelect: "none",
 };
 
 function pickSubjectLabel(s: Subject) {
@@ -148,15 +155,15 @@ export default function SessionClient() {
     setHintText("提示：先把題目拆成兩步，先找關鍵字，再計算/判斷。");
   }
 
+  function backToPractice() {
+    // ✅ 不帶 subject/stage，避免触发 /practice 自动建进度造成「闪跳」
+    router.replace("/practice");
+  }
+
   function clearThis() {
     if (!session) return;
     刪除進度(session.id);
     setMsg(`已清除此回合：${pickSubjectLabel(session.subject)}`);
-    router.replace("/practice");
-  }
-
-  function backToPractice() {
-    // ✅ 重要：不要帶 subject/stage 參數，避免觸發自動建進度造成「閃跳」
     router.replace("/practice");
   }
 
@@ -200,9 +207,9 @@ export default function SessionClient() {
   /* ================= UI ================= */
   return (
     <main style={wrap}>
-      {/* ===== 頂部狀態（v2-8-1 瘦身版）===== */}
+      {/* ===== 頂部狀態（瘦身版）===== */}
       <div style={card}>
-        {/* 上排：科目/階段/題號（盡量同一行） */}
+        {/* 上排：科目/階段/題號 + 右側功能 */}
         <div
           style={{
             display: "flex",
@@ -218,18 +225,26 @@ export default function SessionClient() {
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
           </div>
 
-          {/* 右側：時間 + 暫停 + 回上一頁 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
 
+            {/* ✅ 暫停：改成 pill 造型 */}
             <button onClick={togglePause} style={pillBtn}>
-  {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-</button>
+              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+            </button>
 
+            {/* 回上一页 */}
             <button style={btn} onClick={backToPractice}>
               ← 回上一頁
             </button>
           </div>
+        </div>
+
+        {/* 下排：提示计数（目前先保留在顶端，后续你要移到「提示」标题旁边我们再做） */}
+        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={pill}>
+            提示：{session.hintUsed}/{session.hintLimit}
+          </span>
         </div>
 
         {session.paused ? (
@@ -243,10 +258,7 @@ export default function SessionClient() {
 
       {/* ===== 提示區 ===== */}
       <div style={card}>
-  <div style={{ ...row, justifyContent: "space-between", marginBottom: 10 }}>
-    <div style={{ fontWeight: 900 }}>提示</div>
-    <span style={pill}>提示：{session.hintUsed}/{session.hintLimit}</span>
-  </div>
+        <div style={{ fontWeight: 900, marginBottom: 10 }}>提示</div>
 
         <div style={row}>
           <button onClick={onHint} disabled={!canHint} style={{ ...btn, opacity: canHint ? 1 : 0.5 }}>
@@ -276,58 +288,64 @@ export default function SessionClient() {
           這裡是最小可跑版本。後續你要的「選擇題/填空/應用題」會在 v3 題型系統逐步補上。
         </div>
 
-<div
-  style={{
-    marginTop: 10,
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    flexWrap: "wrap",
-  }}
->
-  <span style={pill}>對：{session.correctCount}</span>
-  <span style={pill}>錯：{session.wrongCount}</span>
-</div>
+        {/* ✅ 对/错 moved here（你之前找不到，其实就该在这里） */}
+        <div
+          style={{
+            marginTop: 12,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              style={btnPrimary}
+              onClick={() => {
+                const next = { ...session, correctCount: session.correctCount + 1 };
+                寫入進度(next);
+                setSession(next);
+                setMsg("答對了！請繼續下一題。");
+              }}
+            >
+              模擬答對
+            </button>
 
-        {/* ✅ v2-8-2 會把「對/錯」移到這裡並做更省空間的樣式 */}
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            style={btnPrimary}
-            onClick={() => {
-              const next = { ...session, correctCount: session.correctCount + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("答對了！請繼續下一題。");
-            }}
-          >
-            模擬答對
-          </button>
+            <button
+              style={btn}
+              onClick={() => {
+                const next = { ...session, wrongCount: session.wrongCount + 1 };
+                寫入進度(next);
+                setSession(next);
+                setMsg("很可惜沒有答對，請再試一次。");
+              }}
+            >
+              模擬答錯
+            </button>
 
-          <button
-            style={btn}
-            onClick={() => {
-              const next = { ...session, wrongCount: session.wrongCount + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("很可惜沒有答對，請再試一次。");
-            }}
-          >
-            模擬答錯
-          </button>
+            <button
+              style={btn}
+              onClick={() => {
+                const next = { ...session, currentIndex: session.currentIndex + 1 };
+                寫入進度(next);
+                setSession(next);
+                setMsg("已前進下一題");
+              }}
+            >
+              下一題 →
+            </button>
 
-          <button
-            style={btn}
-            onClick={() => {
-              const next = { ...session, currentIndex: session.currentIndex + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("已前進下一題");
-            }}
-          >
-            下一題 →
-          </button>
+            {/* 你提到未来要拿掉「清除此回合」：目前先留着，后续统一按计划调整 */}
+            <button style={btn} onClick={clearThis}>
+              清除此回合
+            </button>
+          </div>
 
-  
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={pill}>對：{session.correctCount}</span>
+            <span style={pill}>錯：{session.wrongCount}</span>
+          </div>
         </div>
 
         {msg ? (
