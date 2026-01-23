@@ -1,32 +1,30 @@
-// app/practice/session/SessionClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Question, 取一回合 } from "../../../lib/questions";
-import Whiteboard from "../../components/Whiteboard";
 
-import {
-  取得目前進度id,
-  設定目前進度id,
-  讀取進度,
-  寫入進度,
-  刪除進度,
-  新增進度,
-  格式化時間,
-  type PracticeSession,
-  type Subject,
-} from "../../../lib/session";
+/* ================= 基础样式 ================= */
 
-/* ================== 樣式 ================== */
-const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
+const wrap: React.CSSProperties = {
+  maxWidth: 1100,
+  margin: "0 auto",
+  padding: "8px 0",
+};
+
 const card: React.CSSProperties = {
-  padding: "14px",
+  padding: 14,
   borderRadius: 18,
   background: "#fff",
   border: "1px solid #e6e6e6",
 };
-const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" };
+
+const row: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
 const pill: React.CSSProperties = {
   padding: "6px 10px",
   borderRadius: 999,
@@ -34,12 +32,15 @@ const pill: React.CSSProperties = {
   background: "#fafafa",
   fontSize: 13,
 };
+
 const btn: React.CSSProperties = {
   padding: "10px 12px",
   borderRadius: 12,
   border: "1px solid #ddd",
   background: "#fff",
+  cursor: "pointer",
 };
+
 const btnPrimary: React.CSSProperties = {
   ...btn,
   border: "1px solid #111",
@@ -47,99 +48,116 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
+/* ================= SessionClient ================= */
+
 export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
+  const id = sp.get("id");
 
-  const [session, setSession] = useState<PracticeSession | null>(null);
-const [questions, setQuestions] = useState<Question[]>([]);
-  /* ===== UI 狀態 ===== */
+  const timerRef = useRef<any>(null);
+
+  const [session, setSession] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [answer, setAnswer] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
-  const [whiteboardOpen, setWhiteboardOpen] = useState(false);
 
-  /* ✅ Step 2-2（1/2）：作答 state（只新增，不影響原本功能） */
-  const [textAnswer, setTextAnswer] = useState("");
-  const [submitted, setSubmitted] = useState<string | null>(null);
+  /* ===== 工具：动态载入 session lib ===== */
+  async function withSessionLib<T>(fn: (m: any) => T | Promise<T>) {
+    const m = await import("../../../lib/session");
+    return fn(m);
+  }
 
-  const timerRef = useRef<number | null>(null);
+  function formatTime(sec = 0) {
+    const m = Math.floor(sec / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = Math.floor(sec % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${m}:${s}`;
+  }
 
-  /* ===== 讀取進度 ===== */
+  /* ===== 读取 session ===== */
   useEffect(() => {
-    const idFromUrl = sp.get("id");
-    const id = idFromUrl || 取得目前進度id();
     if (!id) {
       router.replace("/practice");
       return;
     }
 
-    設定目前進度id(id);
-    const s = 讀取進度(id);
-    if (!s) {
-      router.replace("/practice");
-      return;
-    }
+    (async () => {
+      const s = await withSessionLib((m) => {
+        const fn =
+          m.getSession ||
+          m.讀取進度 ||
+          m.readSession ||
+          m.getCurrentSession;
+        return fn ? fn(id) : null;
+      });
 
-    setSession(s);
-setQuestions(取一回合(s.subject));
-    setHintText(null);
-    setMsg(null);
-  }, [router, sp]);
+      if (!s) {
+        router.replace("/practice");
+        return;
+      }
 
-  /* ===== 計時 ===== */
+      setSession(s);
+      setQuestions(s.questions || []);
+    })();
+  }, [id, router]);
+
+  /* ===== 计时 ===== */
   useEffect(() => {
     if (!session) return;
 
-    if (timerRef.current) window.clearInterval(timerRef.current);
-    timerRef.current = null;
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
     if (session.paused) return;
 
     timerRef.current = window.setInterval(() => {
-      setSession((prev) => {
+      setSession((prev: any) => {
         if (!prev) return prev;
-        const next = { ...prev, elapsedSec: prev.elapsedSec + 1 };
-        寫入進度(next);
+        const next = { ...prev, elapsedSec: (prev.elapsedSec ?? 0) + 1 };
+        withSessionLib((m) => {
+          const write = m.寫入進度 || m.saveSession || m.writeSession;
+          if (write) write(next);
+        });
         return next;
       });
     }, 1000);
 
     return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      timerRef.current = null;
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [session?.id, session?.paused]);
 
-const currentQuestion = useMemo(() => {
-  if (!session) return null;
-  return questions[session.currentIndex] ?? null;
-}, [questions, session?.currentIndex]);
+  const currentQuestion = useMemo(() => {
+    if (!session) return null;
+    return questions[session.currentIndex] ?? null;
+  }, [questions, session?.currentIndex]);
 
   const canHint = useMemo(() => {
     if (!session) return false;
     return session.hintUsed < session.hintLimit;
   }, [session]);
 
+  /* ===== 操作 ===== */
+
   function togglePause() {
     if (!session) return;
     const next = { ...session, paused: !session.paused };
-    寫入進度(next);
+    withSessionLib((m) => {
+      const write = m.寫入進度 || m.saveSession || m.writeSession;
+      if (write) write(next);
+    });
     setSession(next);
   }
-
-function backToPractice() {
-  // 如果 session 內有 subject/stage，就回到帶參數的學習區入口
-  const subj = session?.subject ?? "";
-  const stg = ((session as any)?.stage ?? "").toString();
-
-  if (subj && stg) {
-    router.replace(`/practice?subject=${encodeURIComponent(subj)}&stage=${encodeURIComponent(stg)}`);
-    return;
-  }
-
-  // 沒有就回一般學習區
-  router.replace("/practice");
-}
 
   function onHint() {
     if (!session) return;
@@ -148,161 +166,127 @@ function backToPractice() {
       return;
     }
     const next = { ...session, hintUsed: session.hintUsed + 1 };
-    寫入進度(next);
+    withSessionLib((m) => {
+      const write = m.寫入進度 || m.saveSession || m.writeSession;
+      if (write) write(next);
+    });
     setSession(next);
-    setHintText("提示：請先找出題目的關鍵字，再思考解法。");
+    setHintText(currentQuestion?.hint ?? "（本题暂无提示）");
   }
 
+  function backToPractice() {
+    router.replace("/practice");
+  }
+
+  /* ===== 尚未载入 ===== */
   if (!session) {
     return (
       <main style={wrap}>
-        <div style={card}>讀取中…</div>
+        <div style={card}>載入中…</div>
       </main>
     );
   }
 
+  /* ================= UI ================= */
+
   return (
     <main style={wrap}>
-      {/* ===== 頂部狀態 ===== */}
+      {/* ===== 顶部状态 ===== */}
       <div style={card}>
         <div style={{ ...row, justifyContent: "space-between" }}>
           <div style={row}>
             <span style={pill}>科目：{session.subject}</span>
-<span style={pill}>階段：{(session as any).stage ?? "-"}</span>
+            <span style={pill}>階段：{session.stage ?? "-"}</span>
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
-            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
-            <span style={pill}>對：{session.correctCount} / 錯：{session.wrongCount}</span>
-            <span style={pill}>提示：{session.hintUsed}/{session.hintLimit}</span>
+            <span style={pill}>⏱ {formatTime(session.elapsedSec)}</span>
+            <span style={pill}>
+              對：{session.correctCount} / 錯：{session.wrongCount}
+            </span>
+            <span style={pill}>
+              提示：{session.hintUsed}/{session.hintLimit}
+            </span>
           </div>
 
           <div style={row}>
-            <button onClick={togglePause} style={btn}>
+            <button style={btn} onClick={togglePause}>
               {session.paused ? "▶ 繼續" : "⏸ 暫停"}
             </button>
-            function backToPractice() {
-  // v2-6：强制回到「纯学习区」，避免被入口参数再送回作答页
-  router.replace("/practice");
-}
+            <button style={btn} onClick={backToPractice}>
+              ← 回上一頁
+            </button>
           </div>
         </div>
 
-        {session.paused ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff8e6" }}>
+        {session.paused && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 12,
+              background: "#fff8e6",
+            }}
+          >
             已暫停；按「繼續」後再作答。
           </div>
-        ) : null}
+        )}
       </div>
 
-      <div style={{ height: 10 }} />
+      <div style={{ height: 12 }} />
 
-      {/* ===== 提示區 ===== */}
+      {/* ===== 提示区 ===== */}
       <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 10 }}>提示</div>
-
+        <div style={{ fontWeight: 900, marginBottom: 8 }}>提示</div>
         <div style={row}>
-          <button onClick={onHint} disabled={!canHint} style={{ ...btn, opacity: canHint ? 1 : 0.5 }}>
+          <button style={btn} onClick={onHint} disabled={!canHint}>
             顯示提示
           </button>
-
-          <button style={btn} onClick={() => setWhiteboardOpen(true)}>
-            📝 涂鴉牆
-          </button>
         </div>
-
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px dashed #e0e0e0" }}>
-          {hintText ? (
-            <div style={{ lineHeight: 1.8 }}>{hintText}</div>
-          ) : (
-            <div style={{ opacity: 0.7, lineHeight: 1.8 }}>
-              點「顯示提示」後會顯示提示內容（答對前會停留）。
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ height: 10 }} />
-
-      {/* ===== 作答區（Step 2：先能輸入，不判斷對錯）===== */}
-      <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 10 }}>作答區（Step 2）</div>
-
-<div style={{ padding: 12, borderRadius: 12, border: "1px solid #e6e6e6", background: "#fafafa" }}>
-  <div style={{ fontWeight: 900, marginBottom: 6 }}>題目（暫用測試）</div>
-  <div style={{ lineHeight: 1.8 }}>
-    {currentQuestion ? currentQuestion.prompt : "讀取中…"}
-  </div>
-</div>
 
         <div
           style={{
+            marginTop: 12,
             padding: 12,
-            borderRadius: 14,
-            border: "1px solid #e6e6e6",
-            background: "#fafafa",
-            lineHeight: 1.7,
+            borderRadius: 12,
+            border: "1px dashed #ddd",
+            opacity: hintText ? 1 : 0.7,
           }}
         >
-          題目（暫用測試）：2 + 3 = ?
+          {hintText ?? "點「顯示提示」後會顯示提示內容（答對前會保留）。"}
+        </div>
+      </div>
+
+      <div style={{ height: 12 }} />
+
+      {/* ===== 作答区 ===== */}
+      <div style={card}>
+        <div style={{ fontWeight: 900, marginBottom: 8 }}>作答區</div>
+
+        <div style={{ lineHeight: 1.8, marginBottom: 12 }}>
+          {currentQuestion?.text ?? "（暫無題目）"}
         </div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={row}>
           <input
-            value={textAnswer}
-            onChange={(e) => setTextAnswer(e.target.value)}
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
             placeholder="請輸入答案（暫不判斷）"
             style={{
-              flex: "1 1 220px",
               padding: "10px 12px",
               borderRadius: 12,
               border: "1px solid #ddd",
-              fontSize: 16,
-              outline: "none",
-              background: "#fff",
+              flex: 1,
             }}
           />
-
-          <button
-            style={btnPrimary}
-            onClick={() => {
-              const value = textAnswer.trim();
-              if (!value) {
-                setMsg("請先輸入答案再送出。");
-                return;
-              }
-              setSubmitted(value);
-              setMsg(`你已送出答案：${value}`);
-            }}
-          >
-            送出
-          </button>
-
-          <button
-            style={btn}
-            onClick={() => {
-              setTextAnswer("");
-              setSubmitted(null);
-              setMsg(null);
-            }}
-          >
+          <button style={btnPrimary}>送出</button>
+          <button style={btn} onClick={() => setAnswer("")}>
             清除
           </button>
         </div>
 
-        {submitted ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>
-            目前送出：{submitted}
-          </div>
-        ) : null}
-
-        {msg ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>
-            {msg}
-          </div>
-        ) : null}
+        {msg && (
+          <div style={{ marginTop: 12, opacity: 0.8 }}>{msg}</div>
+        )}
       </div>
-
-      {/* ✅ Whiteboard 本體：放在 </main> 之前 */}
-      <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
     </main>
   );
 }
