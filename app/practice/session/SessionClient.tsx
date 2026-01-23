@@ -76,7 +76,9 @@ export default function SessionClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
-
+  // v2-8-2：行为锁定（暂停/是否可前进）
+  const [lastAnswer, setLastAnswer] = useState<null | "correct" | "wrong">(null);
+  const canAdvance = !!session && !session.paused && lastAnswer === "correct";
   const timerRef = useRef<number | null>(null);
 
   /* ================= 讀取進度 ================= */
@@ -100,6 +102,7 @@ export default function SessionClient() {
     setSession(s);
     setHintText(null);
     setMsg(null);
+    setLastAnswer(null);
   }, [router, sp]);
 
   /* ================= 計時（非暫停才跑） ================= */
@@ -292,42 +295,50 @@ export default function SessionClient() {
           這裡是最小可跑版本。後續你要的「選擇題/填空/應用題」會在 v3 題型系統逐步補上。
         </div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            style={btnPrimary}
-            onClick={() => {
-              const next = { ...session, correctCount: session.correctCount + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("答對了！請繼續下一題。");
-            }}
-          >
-            模擬答對
-          </button>
+        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "<button
+  style={{ ...btnPrimary, opacity: session.paused ? 0.5 : 1 }}
+  disabled={session.paused}
+  onClick={() => {
+    if (session.paused) return;
+    const next = { ...session, correctCount: session.correctCount + 1 };
+    寫入進度(next);
+    setSession(next);
+    setLastAnswer("correct");
+    setMsg("答對了！請繼續下一題。");
+  }}
+>
+  模擬答對
+</button>
 
           <button
-            style={btn}
-            onClick={() => {
-              const next = { ...session, wrongCount: session.wrongCount + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("很可惜沒有答對，請再試一次。");
-            }}
-          >
-            模擬答錯
-          </button>
+  style={{ ...btn, opacity: session.paused ? 0.5 : 1 }}
+  disabled={session.paused}
+  onClick={() => {
+    if (session.paused) return;
+    const next = { ...session, wrongCount: session.wrongCount + 1 };
+    寫入進度(next);
+    setSession(next);
+    setLastAnswer("wrong");
+    setMsg("很可惜沒有答對，請再試一次。");
+  }}
+>
+  模擬答錯
+</button>
 
           <button
-            style={btn}
-            onClick={() => {
-              const next = { ...session, currentIndex: session.currentIndex + 1 };
-              寫入進度(next);
-              setSession(next);
-              setMsg("已前進下一題");
-            }}
-          >
-            下一題 →
-          </button>
+  style={{ ...btn, opacity: canAdvance ? 1 : 0.5 }}
+  disabled={!canAdvance}
+  onClick={() => {
+    if (!canAdvance) return;
+    const next = { ...session, currentIndex: session.currentIndex + 1 };
+    寫入進度(next);
+    setSession(next);
+    setLastAnswer(null); // 进入下一题先清空
+    setMsg(null);
+  }}
+>
+  下一題 →
+</button>
 
           {/* 你后面说要拿掉「清除此回合」，现在先保留，下一阶段我们再移除 */}
           <button style={btn} onClick={clearThis}>
