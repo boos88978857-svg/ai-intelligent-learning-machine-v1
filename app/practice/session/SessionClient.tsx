@@ -175,20 +175,7 @@ export default function SessionClient() {
   }
 
   function backToPractice() {
-  if (!session) {
-    router.replace("/practice");
-    return;
-  }
-
-  const subject = encodeURIComponent(session.subject ?? "");
-  const stage = encodeURIComponent((session as any).stage ?? "");
-
-  const url =
-    stage
-      ? `/practice?subject=${subject}&stage=${stage}`
-      : `/practice?subject=${subject}`;
-
-  router.replace(url);
+  router.replace("/practice");
 }
 
   /* ===== 尚未载入 ===== */
