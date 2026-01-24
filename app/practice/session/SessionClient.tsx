@@ -419,7 +419,7 @@ export default function SessionClient() {
           <div style={{ height: 10 }} />
 
           <div style={{ ...row, alignItems: "center" }}>
-            <span style={pill}>{session.subject}</span>
+            <span style={pill}>科目：{session.subject}</span>
             <span style={pill}>階段：{stage}</span>
             <span style={pill}>題數：{TOTAL_QUESTIONS}/{TOTAL_QUESTIONS}</span>
             <span style={pill}>用時：{格式化時間(session.elapsedSec ?? 0)}</span>
@@ -472,7 +472,7 @@ export default function SessionClient() {
         >
           {/* 左侧允许自己换行，但整体可缩 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
-            <span style={pill}>科目：{session.subject}</span>
+            <span style={pill}>{session.subject}</span>
             <span style={pill}>階段：{stage}</span>
             <span style={pill}>
               第 {Math.min((session.currentIndex ?? 0) + 1, TOTAL_QUESTIONS)} / {TOTAL_QUESTIONS} 題
