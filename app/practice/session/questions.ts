@@ -1,71 +1,72 @@
-// app/practice/session/questions.ts
+// app/practice/session/question-bank.ts
 
-export type QuestionType = "choice" | "input" | "apply";
+export type QuestionType = "mcq" | "input" | "truefalse";
 
 export type Question = {
   id: string;
+  subject: string;   // 例：英文
+  stage: string;     // 例：A1 / A2 / B1 / A.T.E.M
   type: QuestionType;
   prompt: string;
-
-  // choice 題使用
-  options?: string[];
-
-  // 正解（先用字串比對；v3-3 再升級成更彈性的判定）
-  answer: string;
-
-  // 可選：解析/講解（之後提示與詳解可用）
-  explain?: string;
+  choices?: string[]; // mcq 用
+  answer?: string;    // demo 用（之後可移除）
+  hint?: string;      // demo 用
 };
 
-// ✅ v3-1：先用「固定假題庫」讓系統跑起來（之後可換成 JSON / DB / API）
-export const demoQuestions: Question[] = [
+const bank: Question[] = [
+  // 英文 A1（示範）
   {
-    id: "a1-001",
-    type: "choice",
-    prompt: "選出正確句子：",
-    options: ["He go to school.", "He goes to school.", "He going to school.", "He gone to school."],
-    answer: "He goes to school.",
-    explain: "第三人稱單數用 goes。",
+    id: "en-a1-1",
+    subject: "英文",
+    stage: "A1",
+    type: "mcq",
+    prompt: "Choose the correct color: The sky is ____.",
+    choices: ["blue", "apple", "table", "run"],
+    answer: "blue",
+    hint: "Think of the sky.",
   },
   {
-    id: "a1-002",
-    type: "choice",
-    prompt: "I ___ a student.",
-    options: ["am", "is", "are", "be"],
+    id: "en-a1-2",
+    subject: "英文",
+    stage: "A1",
+    type: "mcq",
+    prompt: "Choose the correct word: I ____ a student.",
+    choices: ["am", "is", "are", "be"],
     answer: "am",
-    explain: "I + am。",
+    hint: "I + ?",
   },
+
+  // 英文 A.T.E.M（示範）
   {
-    id: "a1-003",
-    type: "input",
-    prompt: "填空：She ___ (have) a cat.",
-    answer: "has",
-    explain: "She + has（第三人稱單數）。",
+    id: "en-atem-1",
+    subject: "英文",
+    stage: "A.T.E.M",
+    type: "mcq",
+    prompt: "Applied: Pick the best response.\nA: How are you?\nB: ____",
+    choices: ["I'm fine, thanks.", "Blue.", "Twelve.", "Because."],
+    answer: "I'm fine, thanks.",
+    hint: "A greeting reply.",
   },
+
+  // 數學 A1（示範）
   {
-    id: "a1-004",
-    type: "choice",
-    prompt: "選出正確翻譯：『我喜歡咖啡。』",
-    options: ["I like coffee.", "I likes coffee.", "I liking coffee.", "I like coffees."],
-    answer: "I like coffee.",
-  },
-  {
-    id: "a1-005",
-    type: "apply",
-    prompt: "應用：請用英文寫一句話描述你今天的心情（先用 demo：固定答案即可）。",
-    answer: "ok",
-    explain: "v3-4 會把 apply 題改成可自由輸入＋AI 回饋。",
+    id: "math-a1-1",
+    subject: "數學",
+    stage: "A1",
+    type: "mcq",
+    prompt: "12 ÷ 3 = ?",
+    choices: ["3", "4", "6", "9"],
+    answer: "4",
+    hint: "Divide equally.",
   },
 ];
 
-// 工具：用 index 安全取得題目（避免越界）
-export function getQuestionByIndex(index: number, list: Question[] = demoQuestions): Question | null {
-  if (!Number.isFinite(index)) return null;
-  if (index < 0 || index >= list.length) return null;
-  return list[index] ?? null;
+export function getQuestions(subject: string, stage: string): Question[] {
+  return bank.filter((q) => q.subject === subject && q.stage === stage);
 }
 
-// 工具：題數
-export function getTotalQuestions(list: Question[] = demoQuestions): number {
-  return list.length;
+export function getQuestionByIndex(subject: string, stage: string, index: number): Question | null {
+  const list = getQuestions(subject, stage);
+  if (index < 0 || index >= list.length) return null;
+  return list[index];
 }
