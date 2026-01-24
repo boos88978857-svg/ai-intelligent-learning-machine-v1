@@ -419,7 +419,7 @@ export default function SessionClient() {
           <div style={{ height: 10 }} />
 
           <div style={{ ...row, alignItems: "center" }}>
-            <span style={pill}>科目：{session.subject}</span>
+            <span style={pill}>{session.subject}</span>
             <span style={pill}>階段：{stage}</span>
             <span style={pill}>題數：{TOTAL_QUESTIONS}/{TOTAL_QUESTIONS}</span>
             <span style={pill}>用時：{格式化時間(session.elapsedSec ?? 0)}</span>
