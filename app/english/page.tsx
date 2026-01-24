@@ -65,8 +65,7 @@ const stages: Stage[] = [
   { id: "c2", label: "C2", sub: "母語程度", href: "/practice?subject=英文&stage=C2" },
 
   // ✅ 这张我们要做成长条横向
-  { id: "applied", label: "英語應用能力", sub: "情境整合（非考試）", href: "/practice?subject=英文&stage=APPLIED" },
-];
+{ id: "applied", label: "英語應用能力", sub: "情境整合（非考試）", href: "/practice?subject=英文&stage=A.T.E.M" },
 
 export default function EnglishPage() {
   return (
