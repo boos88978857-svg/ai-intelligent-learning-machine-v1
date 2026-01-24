@@ -65,7 +65,13 @@ const stages: Stage[] = [
   { id: "c2", label: "C2", sub: "母語程度", href: "/practice?subject=英文&stage=C2" },
 
   // ✅ 这张我们要做成长条横向
-{ id: "applied", label: "英語應用能力", sub: "情境整合（非考試）", href: "/practice?subject=英文&stage=A.T.E.M" },
+  {
+    id: "applied",
+    label: "英語應用能力",
+    sub: "情境整合（非考試）",
+    href: "/practice?subject=英文&stage=A.T.E.M",
+  },
+];
 
 export default function EnglishPage() {
   return (
@@ -73,7 +79,7 @@ export default function EnglishPage() {
       <div style={topRow}>
         <div>
           <h1 style={title}>英文專區</h1>
-          <p style={desc}>先把「階段入口」做穩，v2 只做 UI 與導航，不碰題庫/AI/判分。</p>
+          <p style={desc}>先把「階段入口」做穩，先不碰題庫/AI/判分。</p>
         </div>
 
         <Link href="/" style={backBtn}>
@@ -81,7 +87,6 @@ export default function EnglishPage() {
         </Link>
       </div>
 
-      {/* 手机/窄萤幕 2 栏，宽萤幕 3 栏 */}
       <ResponsiveGrid stages={stages} />
     </main>
   );
@@ -89,9 +94,7 @@ export default function EnglishPage() {
 
 function ResponsiveGrid({ stages }: { stages: Stage[] }) {
   const isNarrow =
-    typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 640px)").matches
-      : false;
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 640px)").matches : false;
 
   const normalStages = stages.filter((s) => s.id !== "applied");
   const appliedStage = stages.find((s) => s.id === "applied");
