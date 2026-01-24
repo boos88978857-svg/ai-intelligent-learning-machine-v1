@@ -11,11 +11,8 @@ import {
   設定目前進度id,
   讀取進度,
   寫入進度,
-  刪除進度,
-  新增進度,
   格式化時間,
   type PracticeSession,
-  type Subject,
 } from "../../../lib/session";
 
 /* ================= 基本參數 ================= */
@@ -64,16 +61,10 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
-const btnGhost: React.CSSProperties = {
-  ...btn,
-  background: "#fff",
-};
-
 function safeStageLabel(session: PracticeSession) {
   return (session as any).stage ?? "-";
 }
 
-/* ================= 主體 ================= */
 export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -88,10 +79,10 @@ export default function SessionClient() {
   const [msg, setMsg] = useState<string | null>(null);
 
   // 作答流程（v2-9）
-  const [picked, setPicked] = useState<"correct" | "wrong" | null>(null); // 使用者選擇
-  const [locked, setLocked] = useState(false); // 按下「確定」後鎖住
-  const [isFinishing, setIsFinishing] = useState(false); // 正在延遲跳下一題
-  const [roundDone, setRoundDone] = useState(false); // 20 題完成
+  const [picked, setPicked] = useState<"correct" | "wrong" | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [roundDone, setRoundDone] = useState(false);
 
   const timerRef = useRef<number | null>(null);
   const autoNextRef = useRef<number | null>(null);
@@ -135,7 +126,6 @@ export default function SessionClient() {
   useEffect(() => {
     if (!session) return;
 
-    // 清除舊計時器
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
@@ -174,16 +164,21 @@ export default function SessionClient() {
     return Number(session.currentIndex ?? 0) + 1;
   }, [session]);
 
-  const isLastQuestion = useMemo(() => {
-    return currentQNo >= TOTAL_QUESTIONS;
-  }, [currentQNo]);
+  const isLastQuestion = useMemo(() => currentQNo >= TOTAL_QUESTIONS, [currentQNo]);
 
   const canPick = !!session && !roundDone && !session.paused && !locked && !isFinishing;
   const canConfirm = !!session && !roundDone && !session.paused && !locked && !isFinishing && !!picked;
 
-  /* ================= 操作函式 ================= */
+  /* ================= 操作 ================= */
   function backToPractice() {
     router.replace("/practice");
+  }
+
+  function cleanupAutoNext() {
+    if (autoNextRef.current) {
+      window.clearTimeout(autoNextRef.current);
+      autoNextRef.current = null;
+    }
   }
 
   function togglePause() {
@@ -194,10 +189,9 @@ export default function SessionClient() {
     寫入進度(next);
     setSession(next);
 
-    // 暫停時清掉「延遲自動下一題」
-    if (next.paused && autoNextRef.current) {
-      window.clearTimeout(autoNextRef.current);
-      autoNextRef.current = null;
+    // 暫停時取消延遲跳題
+    if (next.paused) {
+      cleanupAutoNext();
       setIsFinishing(false);
     }
   }
@@ -210,15 +204,7 @@ export default function SessionClient() {
     寫入進度(next);
     setSession(next);
 
-    // demo 提示
     setHintText("提示：先找關鍵字，再判斷/計算，最後回到題目檢查一次。");
-  }
-
-  function cleanupAutoNext() {
-    if (autoNextRef.current) {
-      window.clearTimeout(autoNextRef.current);
-      autoNextRef.current = null;
-    }
   }
 
   function confirmAnswer() {
@@ -228,7 +214,6 @@ export default function SessionClient() {
     setLocked(true);
     setIsFinishing(true);
 
-    // 更新對/錯
     const isCorrect = picked === "correct";
     const nextAfterJudge: PracticeSession = {
       ...session,
@@ -242,9 +227,7 @@ export default function SessionClient() {
     setMsg(isCorrect ? "✅ 判定：答對（2 秒後自動下一題）" : "❌ 判定：答錯（2 秒後自動下一題）");
 
     cleanupAutoNext();
-
     autoNextRef.current = window.setTimeout(() => {
-      // 若中途暫停或 session 不在了就不動
       setSession((prev) => {
         if (!prev) return prev;
         if (prev.paused) {
@@ -252,8 +235,9 @@ export default function SessionClient() {
           return prev;
         }
 
-        // 如果已經做完 20 題：進入完成畫面
         const nextIndex = Number(prev.currentIndex ?? 0) + 1;
+
+        // 做完 20 題 → 完成畫面（並自動暫停）
         if (nextIndex >= TOTAL_QUESTIONS) {
           const doneSession: PracticeSession = { ...prev, paused: true };
           寫入進度(doneSession);
@@ -266,11 +250,10 @@ export default function SessionClient() {
           return doneSession;
         }
 
-        // 否則正常下一題
+        // 下一題
         const advanced: PracticeSession = { ...prev, currentIndex: nextIndex };
         寫入進度(advanced);
 
-        // 新題：解鎖、清狀態
         setPicked(null);
         setLocked(false);
         setIsFinishing(false);
@@ -282,23 +265,7 @@ export default function SessionClient() {
     }, AUTO_NEXT_DELAY_MS);
   }
 
-  function resetRoundStateUIOnly() {
-    setPicked(null);
-    setLocked(false);
-    setIsFinishing(false);
-    setMsg(null);
-    setHintText(null);
-  }
-
-  // v2-9：重練錯題（先占位，v3 做題庫後再真正重練）
-  function retryWrongPlaceholder() {
-    setMsg("重練錯題：v3 題型系統上線後啟用（目前先回到學習區）。");
-    window.setTimeout(() => {
-      router.replace("/practice");
-    }, 800);
-  }
-
-  /* ================= 離開 / 卸載時清計時器 ================= */
+  /* ================= 卸載清理 ================= */
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
@@ -320,27 +287,31 @@ export default function SessionClient() {
     );
   }
 
-  /* ================= 回合完成畫面（v2-9 Step 2） ================= */
+  /* ================= 回合完成畫面 ================= */
   if (roundDone) {
     return (
       <main style={wrap}>
+        {/* 這裡一樣放一顆靠右的回學習區，避免找不到出口 */}
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 2px 8px 2px" }}>
+          <button style={btn} onClick={backToPractice}>
+            ← 回學習區
+          </button>
+        </div>
+
         <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 900, fontSize: 22 }}>🎉 本回合完成</div>
-            <button style={btn} onClick={backToPractice}>← 回學習區</button>
-          </div>
+          <div style={{ fontWeight: 900, fontSize: 22 }}>🎉 本回合完成</div>
 
           <div style={{ height: 10 }} />
 
           <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ opacity: 0.8, lineHeight: 1.8 }}>
+            <div style={{ opacity: 0.85, lineHeight: 1.9 }}>
               <span style={pill}>科目：{session.subject}</span>{" "}
               <span style={pill}>階段：{safeStageLabel(session)}</span>{" "}
               <span style={pill}>題數：{TOTAL_QUESTIONS}/{TOTAL_QUESTIONS}</span>{" "}
               <span style={pill}>用時：{格式化時間(session.elapsedSec)}</span>
             </div>
 
-            <div style={{ opacity: 0.9, lineHeight: 1.8 }}>
+            <div style={{ opacity: 0.9, lineHeight: 1.9 }}>
               <span style={pill}>答對：{session.correctCount}</span>{" "}
               <span style={pill}>答錯：{session.wrongCount}</span>
             </div>
@@ -349,22 +320,26 @@ export default function SessionClient() {
           <div style={{ height: 12 }} />
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button style={btnPrimary} onClick={retryWrongPlaceholder}>重練錯題</button>
-            <button style={btnGhost} onClick={backToPractice}>回學習區</button>
+            <button style={btnPrimary} onClick={backToPractice}>
+              回學習區
+            </button>
           </div>
-
-          {msg ? (
-            <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>{msg}</div>
-          ) : null}
         </div>
       </main>
     );
   }
 
-  /* ================= UI ================= */
+  /* ================= UI（v2-9 版面調整） ================= */
   return (
     <main style={wrap}>
-      {/* ===== 頂部狀態（v2-9）===== */}
+      {/* ✅ 回上一頁：放最頂端靠右（貼近你說的「關於旁邊」位置） */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 2px 8px 2px" }}>
+        <button style={btn} onClick={backToPractice}>
+          ← 回上一頁
+        </button>
+      </div>
+
+      {/* ===== 狀態卡片：右上放計時+暫停 ===== */}
       <div style={card}>
         <div
           style={{
@@ -375,35 +350,28 @@ export default function SessionClient() {
             justifyContent: "space-between",
           }}
         >
-          {/* 左側：科目/階段/題號 */}
+          {/* 左：科目/階段/題號 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
             <span style={pill}>科目：{session.subject}</span>
             <span style={pill}>階段：{safeStageLabel(session)}</span>
             <span style={pill}>第 {Math.min(currentQNo, TOTAL_QUESTIONS)} 題</span>
           </div>
 
-          {/* 右側：回上一頁（你已經 OK 的位置） */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <button style={btn} onClick={backToPractice}>← 回上一頁</button>
+          {/* 右：計時 / 暫停（放你指定的右上） */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
+            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
+            <button
+              onClick={togglePause}
+              style={{
+                ...pill,
+                cursor: "pointer",
+                background: "#fff",
+                userSelect: "none",
+              }}
+            >
+              {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+            </button>
           </div>
-        </div>
-
-        <div style={{ height: 8 }} />
-
-        {/* 第二排：計時 / 暫停（照你目前布局） */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
-          <button
-            onClick={togglePause}
-            style={{
-              ...pill,
-              cursor: "pointer",
-              background: "#fff",
-              userSelect: "none",
-            }}
-          >
-            {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-          </button>
         </div>
       </div>
 
@@ -413,7 +381,6 @@ export default function SessionClient() {
       <div style={card}>
         <div style={{ fontWeight: 900, marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
           <span>提示</span>
-          {/* v2-9：提示次數顯示在標題旁 */}
           <span style={pill}>
             {session.hintUsed}/{session.hintLimit}
           </span>
@@ -446,7 +413,7 @@ export default function SessionClient() {
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 作答區（v2-9：先選答對/答錯，再按確定，延遲2秒自動下一題）===== */}
+      {/* ===== 作答區（v2-9）===== */}
       <div style={card}>
         <div
           style={{
@@ -522,29 +489,12 @@ export default function SessionClient() {
           >
             確定
           </button>
-
-          {/* 若你要「取消選擇」方便測試，可以保留；不想要就刪掉 */}
-          <button
-            style={{
-              ...btn,
-              opacity: !session.paused && !roundDone && !isFinishing ? 1 : 0.5,
-              cursor: !session.paused && !roundDone && !isFinishing ? "pointer" : "not-allowed",
-            }}
-            disabled={session.paused || roundDone || isFinishing}
-            onClick={() => {
-              if (session.paused || roundDone || isFinishing) return;
-              resetRoundStateUIOnly();
-            }}
-          >
-            取消選擇
-          </button>
         </div>
 
         {msg ? (
           <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f5f5" }}>{msg}</div>
         ) : null}
 
-        {/* 最後一題提醒（可留可删） */}
         {isLastQuestion ? (
           <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12 }}>
             ⚑ 本題為第 {TOTAL_QUESTIONS} 題（按「確定」後會進入本回合完成畫面）
@@ -552,7 +502,6 @@ export default function SessionClient() {
         ) : null}
       </div>
 
-      {/* Whiteboard：必須在 </main> 之前 */}
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
     </main>
   );
