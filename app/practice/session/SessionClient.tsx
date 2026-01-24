@@ -57,6 +57,20 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
+// ✅ 浮動「回上一頁」：固定在右上角（你圈的那個位置）
+const backFloatingBtn: React.CSSProperties = {
+  position: "fixed",
+  top: 10, // 你要再更贴近顶栏，可改成 6 或 8
+  right: 10,
+  zIndex: 9999,
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid #ddd",
+  background: "#fff",
+  cursor: "pointer",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+};
+
 export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -165,7 +179,7 @@ export default function SessionClient() {
   function togglePause() {
     if (!session) return;
 
-    // 暫停時：也要停止自動下一題倒數
+    // 暫停時：停止自動下一題倒數
     if (autoNextRef.current) {
       window.clearTimeout(autoNextRef.current);
       autoNextRef.current = null;
@@ -176,7 +190,6 @@ export default function SessionClient() {
     寫入進度(next);
     setSession(next);
 
-    // 暫停/解除暫停不改選擇，但解除暫停後仍要重新按「確定」
     setMsg(null);
   }
 
@@ -212,7 +225,6 @@ export default function SessionClient() {
         return moved;
       });
 
-      // 重置狀態（下一題重新選/重新提示）
       setPicked(null);
       setIsResolving(false);
       setMsg(null);
@@ -237,18 +249,13 @@ export default function SessionClient() {
   /* ================= UI ================= */
   return (
     <main style={wrap}>
-      {/* ===== 頂部狀態（v2-9 重排）===== */}
+      {/* ✅ 回上一頁：固定到你圈的最上面那排右侧 */}
+      <button style={backFloatingBtn} onClick={backToPractice}>
+        ← 回上一頁
+      </button>
+
+      {/* ===== 頂部狀態（v2-9）===== */}
       <div style={card}>
-        {/* 最上排：把「回上一頁」移到右上角（靠近你圈的“關於那排”位置） */}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button style={btn} onClick={backToPractice}>
-            ← 回上一頁
-          </button>
-        </div>
-
-        <div style={{ height: 8 }} />
-
-        {/* 第二排：科目/階段/題號 */}
         <div style={{ ...row, justifyContent: "space-between" }}>
           <div style={row}>
             <span style={pill}>科目：{session.subject}</span>
@@ -256,7 +263,7 @@ export default function SessionClient() {
             <span style={pill}>第 {session.currentIndex + 1} 題</span>
           </div>
 
-          {/* 右側：計時 + 暫停（移到原本回上一頁那區） */}
+          {/* 右側：計時 + 暫停 */}
           <div style={row}>
             <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
 
@@ -266,7 +273,9 @@ export default function SessionClient() {
                 ...pill,
                 cursor: "pointer",
                 background: "#fff",
+                opacity: isResolving ? 0.6 : 1,
               }}
+              disabled={isResolving}
             >
               {session.paused ? "▶ 繼續" : "⏸ 暫停"}
             </button>
@@ -322,7 +331,6 @@ export default function SessionClient() {
 
       {/* ===== 作答區（v2-9：選答案 -> 確定 -> 2 秒自動下一題）===== */}
       <div style={card}>
-        {/* 標題列：右側顯示 對/錯 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
           <div style={{ fontWeight: 900 }}>作答區（demo）</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -335,7 +343,6 @@ export default function SessionClient() {
           目前為示範模式：先選「答對/答錯」，再按「確定」，系統判定後延遲 2 秒自動下一題。
         </div>
 
-        {/* 選擇 */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <button
             style={{
