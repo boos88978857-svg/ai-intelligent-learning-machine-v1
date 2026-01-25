@@ -71,41 +71,40 @@ const fixedTopRightBtn: React.CSSProperties = {
   ...btnGhost,
 };
 
-/* ✅ 题目区浮水印（你要的：置中显示「题目区」，不影响排版） */
-/* ✅ 题目区浮水印（v3-1 Step3：动态） */
+/* ================= 浮水印（v3-1 Step3：动态 + 变色） ================= */
 const watermarkBase: React.CSSProperties = {
   position: "absolute",
   left: "50%",
   top: "50%",
   transform: "translate(-50%, -50%)",
 
-  fontSize: 34,
+  fontSize: 44, // ✅ 比你原来更大
   fontWeight: 900,
-  letterSpacing: 10,
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display'",
+  letterSpacing: 12,
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang TC', 'Noto Sans TC'",
 
   pointerEvents: "none",
   userSelect: "none",
   whiteSpace: "nowrap",
 
-  transition: "opacity 240ms ease, filter 240ms ease",
+  transition: "opacity 220ms ease, color 220ms ease, transform 220ms ease",
 };
 
-function getWatermarkStyle(
-  wmVisible: boolean,
-  wmTone: "normal" | "wrong"
-): React.CSSProperties {
+function getWatermarkStyle(wmVisible: boolean, wmTone: "normal" | "wrong"): React.CSSProperties {
   return {
     ...watermarkBase,
-    opacity: wmVisible ? 0.06 : 0,
-    filter: wmTone === "wrong"
-      ? "grayscale(0) saturate(2)"
-      : "grayscale(1)",
+    opacity: wmVisible ? 0.08 : 0, // ✅ 更明显一点
+    color: wmTone === "wrong" ? "#d14b4b" : "#111", // ✅ 真正变色（红）
+    transform:
+      wmTone === "wrong"
+        ? "translate(-50%, -50%) scale(1.04)" // ✅ 答错稍微放大一点，用户更有感
+        : "translate(-50%, -50%) scale(1.0)",
   };
 }
 
 /* ================= 常數 ================= */
 const TOTAL_QUESTIONS = 20;
+const HINT_LIMIT = 5; // ✅ 固定 5 次（你要的）
 
 export default function SessionClient() {
   const router = useRouter();
@@ -123,47 +122,11 @@ export default function SessionClient() {
   const [judging, setJudging] = useState(false);
   const nextTimerRef = useRef<number | null>(null);
 
-// ✅ 浮水印动态（v3-1 Step3）
-const [wmVisible, setWmVisible] = useState(true); // 控制淡入淡出
-const [wmTone, setWmTone] = useState<"normal" | "wrong">("normal"); // 答错短暂变色
-const wmFadeTimerRef = useRef<number | null>(null);
-const wmToneTimerRef = useRef<number | null>(null);
-
-// ✅ 题目切换：浮水印先淡出 -> 再淡入（fade）
-useEffect(() => {
-  if (!session) return;
-
-  wmFadeOnQuestionChange();
-
-  // 清掉旧 timer
-  if (wmFadeTimerRef.current) {
-    window.clearTimeout(wmFadeTimerRef.current);
-    wmFadeTimerRef.current = null;
-  }
-
-  // 先淡出
-  setWmVisible(false);
-
-  // 60ms 后淡入（让 transition 生效）
-  wmFadeTimerRef.current = window.setTimeout(() => {
-    setWmVisible(true);
-  }, 60);
-
-  return () => {
-    if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
-    wmFadeTimerRef.current = null;
-  };
-}, [session?.subject, (session as any)?.stage, session?.currentIndex]);
-
-// ✅ 离开页：清 timer
-useEffect(() => {
-  return () => {
-    if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
-    if (wmToneTimerRef.current) window.clearTimeout(wmToneTimerRef.current);
-    wmFadeTimerRef.current = null;
-    wmToneTimerRef.current = null;
-  };
-}, []);
+  // ✅ 浮水印动态
+  const [wmVisible, setWmVisible] = useState(true);
+  const [wmTone, setWmTone] = useState<"normal" | "wrong">("normal");
+  const wmFadeTimerRef = useRef<number | null>(null);
+  const wmToneTimerRef = useRef<number | null>(null);
 
   // 計時
   const timerRef = useRef<number | null>(null);
@@ -179,32 +142,11 @@ useEffect(() => {
     }
   }
 
-  // ✅ 2-2（第 1 段）：浮水印 helper（不动基底，其它逻辑不影响）
   function clearWmTimers() {
     if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
     if (wmToneTimerRef.current) window.clearTimeout(wmToneTimerRef.current);
     wmFadeTimerRef.current = null;
     wmToneTimerRef.current = null;
-  }
-
-  // 答错：短暂“变色提示”，再恢复
-  function wmPulseOnWrong() {
-    clearWmTimers();
-    setWmTone("wrong");
-    wmToneTimerRef.current = window.setTimeout(() => {
-      setWmTone("normal");
-      wmToneTimerRef.current = null;
-    }, 700);
-  }
-
-  // 题目切换：淡出 -> 再淡入（不抢正文）
-  function wmFadeOnQuestionChange() {
-    clearWmTimers();
-    setWmVisible(false);
-    wmFadeTimerRef.current = window.setTimeout(() => {
-      setWmVisible(true);
-      wmFadeTimerRef.current = null;
-    }, 240);
   }
 
   /* ================= 讀取進度 ================= */
@@ -225,7 +167,11 @@ useEffect(() => {
       return;
     }
 
-    setSession(s);
+    // ✅ 强制把 hintLimit 固定成 5（避免 session 里原本是 3）
+    const fixed = { ...s, hintLimit: HINT_LIMIT };
+
+    寫入進度(fixed);
+    setSession(fixed);
 
     // reset UI
     setMsg(null);
@@ -233,6 +179,11 @@ useEffect(() => {
     setPickedChoice(null);
     setJudging(false);
     clearNextTimer();
+
+    // reset watermark
+    clearWmTimers();
+    setWmTone("normal");
+    setWmVisible(true);
   }, [router, sp]);
 
   /* ================= 計算狀態 ================= */
@@ -243,16 +194,11 @@ useEffect(() => {
 
   const isFinished = useMemo(() => answeredCount >= TOTAL_QUESTIONS, [answeredCount]);
 
-  const hintLimit = useMemo(() => {
-    // 你要 5 次；若 session.hintLimit 有值就用它，沒有就 fallback 5
-    return (session?.hintLimit ?? 5) as number;
-  }, [session]);
-
   const canHint = useMemo(() => {
     if (!session) return false;
     const used = session.hintUsed ?? 0;
-    return used < hintLimit;
-  }, [session, hintLimit]);
+    return used < HINT_LIMIT;
+  }, [session]);
 
   const locked = useMemo(() => {
     return !session || session.paused || judging || isFinished;
@@ -272,14 +218,13 @@ useEffect(() => {
     return getStageCount(subject, stage);
   }, [session, subject, stage]);
 
-  // 把 prompt 第一行搬到「题目」旁边（你前面定的 UI 规则）
+  // ✅ prompt 第一行搬到标题旁边（你现在的规则）
   const promptParts = useMemo(() => {
     const raw = q?.prompt ?? "";
     const lines = raw.split("\n");
     const first = (lines[0] ?? "").trim();
     const rest = lines.slice(1).join("\n").trim();
 
-    // 经验规则：第一行如果像 "Choose ..." / "選擇 ..." 当成 stem
     const looksLikeStem =
       /^choose\b/i.test(first) ||
       /^選擇/.test(first) ||
@@ -292,6 +237,28 @@ useEffect(() => {
       body: looksLikeStem ? rest : raw,
     };
   }, [q]);
+
+  /* ================= 浮水印：题目变化淡出淡入（只保留一套，不打架） ================= */
+  useEffect(() => {
+    if (!session) return;
+
+    clearWmTimers();
+
+    // 先淡出
+    setWmVisible(false);
+
+    // 很短时间后淡入（让 transition 生效）
+    wmFadeTimerRef.current = window.setTimeout(() => {
+      setWmVisible(true);
+      wmFadeTimerRef.current = null;
+    }, 60);
+
+    return () => {
+      if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
+      wmFadeTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.subject, (session as any)?.stage, session?.currentIndex]);
 
   /* ================= 計時（僅在未暫停 & 未完成時） ================= */
   useEffect(() => {
@@ -310,7 +277,7 @@ useEffect(() => {
     timerRef.current = window.setInterval(() => {
       setSession((prev) => {
         if (!prev) return prev;
-        // 若已完成，保险：不要再加
+
         const done = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0) >= TOTAL_QUESTIONS;
         if (done) return prev;
 
@@ -337,18 +304,18 @@ useEffect(() => {
     setMsg(null);
   }
 
-  /* ================= 操作：提示（次数 5） ================= */
+  /* ================= 操作：提示（固定 5 次） ================= */
   function onHint() {
     if (!session) return;
     if (session.paused) return;
 
     const used = session.hintUsed ?? 0;
-    if (used >= hintLimit) {
+    if (used >= HINT_LIMIT) {
       setHintText("提示次數已用完");
       return;
     }
 
-    const next = { ...session, hintUsed: used + 1, hintLimit };
+    const next = { ...session, hintUsed: used + 1, hintLimit: HINT_LIMIT };
     寫入進度(next);
     setSession(next);
 
@@ -367,6 +334,7 @@ useEffect(() => {
   function confirmAnswer() {
     if (!session) return;
     if (locked) return;
+
     if (!q) {
       setMsg("本階段暫時沒有題目。");
       return;
@@ -378,23 +346,18 @@ useEffect(() => {
 
     const isCorrect = pickedChoice === q.answer;
 
-// ✅ 2-2C-3-2：答错时浮水印短暂变色
-if (!isCorrect) {
-  // 清掉旧的 tone timer
-  if (wmToneTimerRef.current) {
-    window.clearTimeout(wmToneTimerRef.current);
-    wmToneTimerRef.current = null;
-  }
-
-  // 切到 wrong tone（灰 / 红）
-  setWmTone("wrong");
-
-  // 800ms 后恢复 normal
-  wmToneTimerRef.current = window.setTimeout(() => {
-    setWmTone("normal");
-    wmToneTimerRef.current = null;
-  }, 800);
-}
+    // ✅ 答错：浮水印短暂变红，再恢复
+    if (!isCorrect) {
+      if (wmToneTimerRef.current) {
+        window.clearTimeout(wmToneTimerRef.current);
+        wmToneTimerRef.current = null;
+      }
+      setWmTone("wrong");
+      wmToneTimerRef.current = window.setTimeout(() => {
+        setWmTone("normal");
+        wmToneTimerRef.current = null;
+      }, 800);
+    }
 
     const next = isCorrect
       ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
@@ -406,8 +369,6 @@ if (!isCorrect) {
     setJudging(true);
     setMsg(isCorrect ? "✅ 正確。準備進入下一題…" : "❌ 錯誤。本題已記錄，將於「錯題練習」中再加強。");
 
-    // ✅ 这里先维持你当前 v3-1 的行为（先不改自动/手动规则），避免又乱
-    // 如果你下一步要「答對自動、答錯手動」，我们会在 v3-1 step4 / v3-2 一次改好
     clearNextTimer();
     nextTimerRef.current = window.setTimeout(() => {
       setSession((prev) => {
@@ -428,18 +389,20 @@ if (!isCorrect) {
     }, 2000);
   }
 
-  // 離開頁面時清除 timer
+  // 離開頁面：清 timer
   useEffect(() => {
     return () => {
       clearNextTimer();
+      clearWmTimers();
       if (timerRef.current) window.clearInterval(timerRef.current);
       timerRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ================= 完成畫面 ================= */
   if (session && isFinished) {
-    // ✅ 进完成页前，确保计时器停掉
+    // ✅ 进完成页确保计时停止
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
@@ -510,11 +473,10 @@ if (!isCorrect) {
           }}
         >
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {/* ✅ 科目不加「科目：」避免手机挤到第二行（你已做的方向） */}
+            {/* ✅ 科目不加「科目：」避免手机挤到第二行 */}
             <span style={pill}>{session.subject}</span>
             <span style={pill}>{(session as any).stage ?? "-"}</span>
 
-            {/* ✅ 题数用「第 x/20」 */}
             <span style={pill}>
               第 {Math.min((session.currentIndex ?? 0) + 1, TOTAL_QUESTIONS)}/{TOTAL_QUESTIONS}
             </span>
@@ -548,27 +510,15 @@ if (!isCorrect) {
 
       {/* ===== 題目區（v3-1：題庫）===== */}
       <div style={{ ...card, position: "relative" }}>
-        {/* ✅ 浮水印：题目区（三个字置中） */}
+        {/* ✅ 浮水印：题目区（三字置中） */}
         <div style={getWatermarkStyle(wmVisible, wmTone)}>題目區</div>
 
-        {/* 題目標題列：左=題目 + stem，右侧不放任何 pill（你要拿掉那 3 个标签） */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
-            flexWrap: "wrap",
-            marginBottom: 8,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            {promptParts.stem ? <div style={{ opacity: 0.75 }}>{promptParts.stem}</div> : null}
-          </div>
-
-          {/* ✅ 右侧刻意留空：不放 提示/对/错 */}
-          <div />
-        </div>
+        {/* ✅ 左上「题目」拿掉；这里只放 stem（如果有） */}
+        {promptParts.stem ? (
+          <div style={{ opacity: 0.75, marginBottom: 8 }}>{promptParts.stem}</div>
+        ) : (
+          <div style={{ height: 6 }} />
+        )}
 
         {/* 題目內容 */}
         <div style={{ opacity: 0.95, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
@@ -601,7 +551,7 @@ if (!isCorrect) {
 
         <div style={{ height: 10 }} />
 
-        {/* 操作列：確定 + 塗鴉牆（沿用你之前习惯） */}
+        {/* 操作列：確定 + 塗鴉牆 */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <button
             style={{
@@ -620,9 +570,11 @@ if (!isCorrect) {
           </button>
         </div>
 
-        {msg ? <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div> : null}
+        {msg ? (
+          <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div>
+        ) : null}
 
-        {/* 小提示：stageCount 仅用于你调试题库是否足够 */}
+        {/* 题库数量提示（仅调试用） */}
         {stageCount === 0 ? (
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#fff8e6" }}>
             ⚠️ 這個階段目前題庫數量為 0，請確認 question-bank.ts 的 subject/stage 名稱是否一致。
@@ -632,7 +584,7 @@ if (!isCorrect) {
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 提示區（这里才是：顯示提示 + 次數 + 對/錯 固定在同一排）===== */}
+      {/* ===== 提示區：顯示提示 + 次數 + 對/錯（固定同一排）===== */}
       <div style={card}>
         <div
           style={{
@@ -653,18 +605,15 @@ if (!isCorrect) {
             </button>
 
             <span style={pill}>
-              {session.hintUsed ?? 0}/{hintLimit}
+              {session.hintUsed ?? 0}/{HINT_LIMIT}
             </span>
 
-            {/* ✅ 对/错固定在提示次数后面（你要的最终位置） */}
+            {/* ✅ 对/错固定在提示次数后面 */}
             <span style={pill}>對 {session.correctCount ?? 0}</span>
             <span style={pill}>錯 {session.wrongCount ?? 0}</span>
           </div>
 
-          {/* 右側：塗鴉牆（如果你更喜欢在提示区也放按钮，这里保留；否则删掉也行） */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* 这里留空也可以 */}
-          </div>
+          <div />
         </div>
 
         <div
