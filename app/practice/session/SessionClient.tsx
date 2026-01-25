@@ -298,7 +298,7 @@ export default function SessionClient() {
     setSession(next);
 
     setJudging(true);
-    setMsg(isCorrect ? "✅ 正確。準備進入下一題…" : "❌ 錯誤。本題已記錄，將於「錯題練習」中再加強。按「下一題」繼續。");
+    setMsg(isCorrect ? "✅ 正確。準備進入下一題…" : "❌ 錯誤。本題已記錄，將於「錯題練習」中再加強。");
 
     // ✅ 这里先维持你当前 v3-1 的行为（先不改自动/手动规则），避免又乱
     // 如果你下一步要「答對自動、答錯手動」，我们会在 v3-1 step4 / v3-2 一次改好
