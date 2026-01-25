@@ -356,7 +356,7 @@ export default function SessionClient() {
       wmToneTimerRef.current = window.setTimeout(() => {
         setWmTone("normal");
         wmToneTimerRef.current = null;
-      }, 800);
+      }, 2000);
     }
 
     const next = isCorrect
