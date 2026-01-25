@@ -75,12 +75,11 @@ const fixedTopRightBtn: React.CSSProperties = {
 const watermarkCenter: React.CSSProperties = {
   position: "absolute",
   left: "50%",
-  top: 52,
-  transform: "translateX(-50%)",
-  fontSize: 14,
-  fontWeight: 900,
-  letterSpacing: 2,
-  opacity: 0.08,
+top: "50%",
+transform: "translate(-50%, -50%)",
+fontSize: 28,        // ← 放大
+letterSpacing: 4,    // ← 拉开一点更像区块标示
+opacity: 0.05,       // ← 更淡，不抢题目
   pointerEvents: "none",
   userSelect: "none",
   whiteSpace: "nowrap",
@@ -457,7 +456,6 @@ export default function SessionClient() {
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 900, fontSize: 22 }}>題目</div>
             {promptParts.stem ? <div style={{ opacity: 0.75 }}>{promptParts.stem}</div> : null}
           </div>
 
