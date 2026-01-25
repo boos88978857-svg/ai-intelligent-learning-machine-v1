@@ -432,3 +432,28 @@ const ATEM: Template[] = [
     hint: "reschedule = 改期/重新排程。",
   },
 ];
+
+/* ======================
+   BANK（每階段 20 題）
+====================== */
+const BANK: Question[] = [
+  ...build20(SUBJECT, "A1", A1),
+  ...build20(SUBJECT, "A2", A2),
+  ...build20(SUBJECT, "B1", B1),
+  ...build20(SUBJECT, "B2", B2),
+  ...build20(SUBJECT, "C1", C1),
+  ...build20(SUBJECT, "C2", C2),
+  ...build20(SUBJECT, "A.T.E.M", ATEM),
+];
+
+export function getQuestionByIndex(subject: string, stage: string, index: number): Question | null {
+  const list = BANK.filter((q) => q.subject === subject && q.stage === stage);
+  if (list.length === 0) return null;
+
+  const i = ((index % list.length) + list.length) % list.length;
+  return list[i] ?? null;
+}
+
+export function getStageCount(subject: string, stage: string): number {
+  return BANK.filter((q) => q.subject === subject && q.stage === stage).length;
+}
