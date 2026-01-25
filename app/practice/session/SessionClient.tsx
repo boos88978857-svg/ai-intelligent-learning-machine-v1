@@ -90,12 +90,26 @@ const watermarkBase: React.CSSProperties = {
   transition: "opacity 240ms ease, filter 240ms ease",
 };
 
-function getWatermarkStyle(wmVisible: boolean, wmTone: "normal" | "wrong"): React.CSSProperties {
+function getWatermarkStyle(
+  wmVisible: boolean,
+  wmTone: "normal" | "wrong"
+): React.CSSProperties {
+  const isWrong = wmTone === "wrong";
+
   return {
     ...watermarkBase,
+
+    // 透明度：正常显示 / 隐藏
     opacity: wmVisible ? 0.06 : 0,
-    // 注意：这里是“色调逻辑”，你要更红/更灰可以调 filter
-    filter: wmTone === "wrong" ? "grayscale(0) saturate(2)" : "grayscale(1)",
+
+    // ✅ 关键：直接给颜色，wrong 才会变红
+    color: isWrong ? "rgba(220, 38, 38, 1)" : "rgba(17, 17, 17, 1)",
+
+    // ✅ 让红色“看得见但不抢题目”（可删）
+    textShadow: isWrong ? "0 0 1px rgba(220,38,38,0.35)" : "none",
+
+    // ✅ 可选：让普通态更“像水印”（灰一点）
+    filter: isWrong ? "none" : "grayscale(1)",
   };
 }
 
@@ -421,7 +435,7 @@ export default function SessionClient() {
       }, 1800);
     } else {
       // ✅ 答错：不自动跳；开放“下一题”按钮
-      setMsg("❌ 錯誤。本題已記錄；你可以查看提示理解後，按「下一題」繼續。");
+      setMsg("❌ 錯誤。本題已記錄错题重练，按「下一題」繼續。");
       setCanGoNext(true);
 
       // ✅ 浮水印变色维持到你想要的时间（你说要跟下一题一样就用 1800）
