@@ -462,10 +462,6 @@ export default function SessionClient() {
             marginBottom: 8,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 900, fontSize: 20 }}>題目</div>
-            {promptParts.head ? <span style={pill}>{promptParts.head}</span> : null}
-          </div>
 
           {/* ✅ 把對/錯放到提示次數後面（同一排、固定位置） */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -545,22 +541,55 @@ export default function SessionClient() {
       <div style={{ height: 10 }} />
 
       {/* ===== 提示區：只顯示提示內容（按鈕已放在題目區）===== */}
-      <div style={card}>
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>提示內容</div>
+      {/* ===== 提示區：顯示提示 + 次數 + 對/錯（回到 v2-9 的位置）===== */}
+<div style={card}>
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      flexWrap: "wrap",
+      marginBottom: 8,
+    }}
+  >
+    {/* 左側：顯示提示 + 次數 + 對/錯 */}
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <button
+        style={{ ...btn, opacity: !session.paused && canHint ? 1 : 0.5 }}
+        onClick={onHint}
+        disabled={session.paused || !canHint}
+      >
+        顯示提示
+      </button>
 
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 12,
-            border: "1px dashed #e0e0e0",
-            opacity: hintText ? 1 : 0.7,
-            lineHeight: 1.8,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {hintText ? hintText : "尚未使用提示"}
-        </div>
-      </div>
+      <span style={pill}>
+        {session.hintUsed ?? 0}/{session.hintLimit ?? HINT_LIMIT_V3}
+      </span>
+
+      <span style={pill}>對 {session.correctCount ?? 0}</span>
+      <span style={pill}>錯 {session.wrongCount ?? 0}</span>
+    </div>
+
+    {/* 右側：塗鴉牆 */}
+    <button style={btn} onClick={() => setWhiteboardOpen(true)} disabled={session.paused}>
+      📝 塗鴉牆
+    </button>
+  </div>
+
+  <div
+    style={{
+      padding: 12,
+      borderRadius: 12,
+      border: "1px dashed #e0e0e0",
+      opacity: hintText ? 1 : 0.7,
+      lineHeight: 1.8,
+      whiteSpace: "pre-wrap",
+    }}
+  >
+    {hintText ? hintText : "尚未使用提示"}
+  </div>
+</div>
 
       {/* ✅ Whiteboard 本體 */}
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
