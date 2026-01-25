@@ -20,7 +20,7 @@ type Template = {
 
 function makeQ(subject: string, stage: string, i: number, t: Template): Question {
   return {
-    id: `en-${stage.replaceAll(".", "").toLowerCase()}-${String(i + 1).padStart(2, "0")}`,
+    id: `en-${stage.split(".").join("").toLowerCase()}-${String(i + 1).padStart(2, "0")}`,
     subject,
     stage,
     type: "mcq",
