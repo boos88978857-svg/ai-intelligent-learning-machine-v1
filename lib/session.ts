@@ -111,7 +111,7 @@ export function newSession(subject: Subject): PracticeSession {
     subject,
     currentIndex: 0,
     elapsedSec: 0,
-    hintLimit: 3,
+    hintLimit: 5,
     hintUsed: 0,
     correctCount: 0,
     wrongCount: 0,
