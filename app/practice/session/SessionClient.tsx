@@ -78,10 +78,10 @@ const watermarkCenter: React.CSSProperties = {
   top: "50%",
   transform: "translate(-50%, -50%)",
 
-  fontSize: 28,
+  fontSize: 34,          // ⬅ 再放大一阶（关键）
   fontWeight: 700,
-  letterSpacing: 6,
-  opacity: 0.04,
+  letterSpacing: 8,      // ⬅ 拉开一点，更像区块标识
+  opacity: 0.035,        // ⬅ 字大了就再淡一点，避免抢戏
 
   fontFamily:
     '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
