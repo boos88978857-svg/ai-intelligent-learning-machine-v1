@@ -75,11 +75,17 @@ const fixedTopRightBtn: React.CSSProperties = {
 const watermarkCenter: React.CSSProperties = {
   position: "absolute",
   left: "50%",
-top: "50%",
-transform: "translate(-50%, -50%)",
-fontSize: 28,        // ← 放大
-letterSpacing: 4,    // ← 拉开一点更像区块标示
-opacity: 0.05,       // ← 更淡，不抢题目
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+
+  fontSize: 28,
+  fontWeight: 700,
+  letterSpacing: 6,
+  opacity: 0.04,
+
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+
   pointerEvents: "none",
   userSelect: "none",
   whiteSpace: "nowrap",
