@@ -72,24 +72,37 @@ const fixedTopRightBtn: React.CSSProperties = {
 };
 
 /* ✅ 题目区浮水印（你要的：置中显示「题目区」，不影响排版） */
-const watermarkCenter: React.CSSProperties = {
+/* ✅ 题目区浮水印（v3-1 Step3：动态） */
+const watermarkBase: React.CSSProperties = {
   position: "absolute",
   left: "50%",
   top: "50%",
   transform: "translate(-50%, -50%)",
 
-  fontSize: 34,          // ⬅ 再放大一阶（关键）
-  fontWeight: 800,
-  letterSpacing: 10,      // ⬅ 拉开一点，更像区块标识
-  opacity: 0.03,        // ⬅ 字大了就再淡一点，避免抢戏
-
-  fontFamily:
-    '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  fontSize: 34,
+  fontWeight: 900,
+  letterSpacing: 10,
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display'",
 
   pointerEvents: "none",
   userSelect: "none",
   whiteSpace: "nowrap",
+
+  transition: "opacity 240ms ease, filter 240ms ease",
 };
+
+function getWatermarkStyle(
+  wmVisible: boolean,
+  wmTone: "normal" | "wrong"
+): React.CSSProperties {
+  return {
+    ...watermarkBase,
+    opacity: wmVisible ? 0.06 : 0,
+    filter: wmTone === "wrong"
+      ? "grayscale(0) saturate(2)"
+      : "grayscale(1)",
+  };
+}
 
 /* ================= 常數 ================= */
 const TOTAL_QUESTIONS = 20;
@@ -110,6 +123,48 @@ export default function SessionClient() {
   const [judging, setJudging] = useState(false);
   const nextTimerRef = useRef<number | null>(null);
 
+// ✅ 浮水印动态（v3-1 Step3）
+const [wmVisible, setWmVisible] = useState(true); // 控制淡入淡出
+const [wmTone, setWmTone] = useState<"normal" | "wrong">("normal"); // 答错短暂变色
+const wmFadeTimerRef = useRef<number | null>(null);
+const wmToneTimerRef = useRef<number | null>(null);
+
+// ✅ 题目切换：浮水印先淡出 -> 再淡入（fade）
+useEffect(() => {
+  if (!session) return;
+
+  wmFadeOnQuestionChange();
+
+  // 清掉旧 timer
+  if (wmFadeTimerRef.current) {
+    window.clearTimeout(wmFadeTimerRef.current);
+    wmFadeTimerRef.current = null;
+  }
+
+  // 先淡出
+  setWmVisible(false);
+
+  // 60ms 后淡入（让 transition 生效）
+  wmFadeTimerRef.current = window.setTimeout(() => {
+    setWmVisible(true);
+  }, 60);
+
+  return () => {
+    if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
+    wmFadeTimerRef.current = null;
+  };
+}, [session?.subject, (session as any)?.stage, session?.currentIndex]);
+
+// ✅ 离开页：清 timer
+useEffect(() => {
+  return () => {
+    if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
+    if (wmToneTimerRef.current) window.clearTimeout(wmToneTimerRef.current);
+    wmFadeTimerRef.current = null;
+    wmToneTimerRef.current = null;
+  };
+}, []);
+
   // 計時
   const timerRef = useRef<number | null>(null);
 
@@ -122,6 +177,34 @@ export default function SessionClient() {
       window.clearTimeout(nextTimerRef.current);
       nextTimerRef.current = null;
     }
+  }
+
+  // ✅ 2-2（第 1 段）：浮水印 helper（不动基底，其它逻辑不影响）
+  function clearWmTimers() {
+    if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
+    if (wmToneTimerRef.current) window.clearTimeout(wmToneTimerRef.current);
+    wmFadeTimerRef.current = null;
+    wmToneTimerRef.current = null;
+  }
+
+  // 答错：短暂“变色提示”，再恢复
+  function wmPulseOnWrong() {
+    clearWmTimers();
+    setWmTone("wrong");
+    wmToneTimerRef.current = window.setTimeout(() => {
+      setWmTone("normal");
+      wmToneTimerRef.current = null;
+    }, 700);
+  }
+
+  // 题目切换：淡出 -> 再淡入（不抢正文）
+  function wmFadeOnQuestionChange() {
+    clearWmTimers();
+    setWmVisible(false);
+    wmFadeTimerRef.current = window.setTimeout(() => {
+      setWmVisible(true);
+      wmFadeTimerRef.current = null;
+    }, 240);
   }
 
   /* ================= 讀取進度 ================= */
@@ -295,6 +378,24 @@ export default function SessionClient() {
 
     const isCorrect = pickedChoice === q.answer;
 
+// ✅ 2-2C-3-2：答错时浮水印短暂变色
+if (!isCorrect) {
+  // 清掉旧的 tone timer
+  if (wmToneTimerRef.current) {
+    window.clearTimeout(wmToneTimerRef.current);
+    wmToneTimerRef.current = null;
+  }
+
+  // 切到 wrong tone（灰 / 红）
+  setWmTone("wrong");
+
+  // 800ms 后恢复 normal
+  wmToneTimerRef.current = window.setTimeout(() => {
+    setWmTone("normal");
+    wmToneTimerRef.current = null;
+  }, 800);
+}
+
     const next = isCorrect
       ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
       : { ...session, wrongCount: (session.wrongCount ?? 0) + 1 };
@@ -448,7 +549,7 @@ export default function SessionClient() {
       {/* ===== 題目區（v3-1：題庫）===== */}
       <div style={{ ...card, position: "relative" }}>
         {/* ✅ 浮水印：题目区（三个字置中） */}
-        <div style={watermarkCenter}>題目區</div>
+        <div style={getWatermarkStyle(wmVisible, wmTone)}>題目區</div>
 
         {/* 題目標題列：左=題目 + stem，右侧不放任何 pill（你要拿掉那 3 个标签） */}
         <div
