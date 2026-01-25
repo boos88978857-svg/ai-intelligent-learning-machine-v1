@@ -15,7 +15,6 @@ import {
   type PracticeSession,
 } from "../../../lib/session";
 
-// ✅ v3-1：題庫（同資料夾匯入）
 import { getQuestionByIndex, getStageCount, type Question } from "./question-bank";
 
 /* ================= 基本樣式（沿用 v2-9 基底，不亂動） ================= */
@@ -67,14 +66,28 @@ const btnGhost: React.CSSProperties = {
 const fixedTopRightBtn: React.CSSProperties = {
   position: "fixed",
   right: 14,
-  top: 74, // 若你 navbar 高度不同，可微調
+  top: 74,
   zIndex: 999,
   ...btnGhost,
 };
 
+/* ✅ 题目区浮水印（你要的：置中显示「题目区」，不影响排版） */
+const watermarkCenter: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: 52,
+  transform: "translateX(-50%)",
+  fontSize: 14,
+  fontWeight: 900,
+  letterSpacing: 2,
+  opacity: 0.08,
+  pointerEvents: "none",
+  userSelect: "none",
+  whiteSpace: "nowrap",
+};
+
 /* ================= 常數 ================= */
-const AUTO_NEXT_MS = 1800; // ✅ 答對自動下一題延遲（1.5~2 秒之間）
-const HINT_LIMIT_V3 = 5; // ✅ v3-1：提示次數改 5 次
+const TOTAL_QUESTIONS = 20;
 
 export default function SessionClient() {
   const router = useRouter();
@@ -87,17 +100,16 @@ export default function SessionClient() {
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
 
-  // v3-1：題目狀態
-  const [pickedChoice, setPickedChoice] = useState<string | null>(null); // 使用者選的選項文字
-  const [judging, setJudging] = useState(false); // 判定中鎖定
-  const [isWrong, setIsWrong] = useState(false); // 本題是否答錯（答錯：要手動下一題）
-
+  // v3-1：题目与选项状态
+  const [pickedChoice, setPickedChoice] = useState<string | null>(null);
+  const [judging, setJudging] = useState(false);
   const nextTimerRef = useRef<number | null>(null);
+
+  // 計時
   const timerRef = useRef<number | null>(null);
 
-  /* ================= 工具 ================= */
   function backToPractice() {
-    router.replace("/practice"); // ✅ 不帶 query，避免自動建進度閃跳
+    router.replace("/practice");
   }
 
   function clearNextTimer() {
@@ -125,63 +137,96 @@ export default function SessionClient() {
       return;
     }
 
-    // ✅ v3-1：提示次數固定 5（不破壞舊資料，直接覆蓋成 5）
-    if ((s as any).hintLimit !== HINT_LIMIT_V3) {
-      (s as any).hintLimit = HINT_LIMIT_V3;
-      // hintUsed 若超過新上限就裁掉
-      if ((s as any).hintUsed > HINT_LIMIT_V3) (s as any).hintUsed = HINT_LIMIT_V3;
-      寫入進度(s as any);
-    }
-
     setSession(s);
+
+    // reset UI
     setMsg(null);
     setHintText(null);
-
-    // v3-1：重置題目狀態
     setPickedChoice(null);
     setJudging(false);
-    setIsWrong(false);
     clearNextTimer();
   }, [router, sp]);
 
-  /* ================= 計時（僅在未暫停 & 未完成時） ================= */
-  const stage = useMemo(() => ((session as any)?.stage ?? "").toString(), [session]);
-  const subject = useMemo(() => (session?.subject ?? "").toString(), [session]);
-
-  const totalQuestions = useMemo(() => {
-    if (!subject || !stage) return 20;
-    const c = getStageCount(subject, stage);
-    return c > 0 ? c : 20;
-  }, [subject, stage]);
-
+  /* ================= 計算狀態 ================= */
   const answeredCount = useMemo(() => {
     if (!session) return 0;
     return (session.correctCount ?? 0) + (session.wrongCount ?? 0);
   }, [session]);
 
-  const isFinished = useMemo(() => {
-    return answeredCount >= totalQuestions;
-  }, [answeredCount, totalQuestions]);
+  const isFinished = useMemo(() => answeredCount >= TOTAL_QUESTIONS, [answeredCount]);
 
+  const hintLimit = useMemo(() => {
+    // 你要 5 次；若 session.hintLimit 有值就用它，沒有就 fallback 5
+    return (session?.hintLimit ?? 5) as number;
+  }, [session]);
+
+  const canHint = useMemo(() => {
+    if (!session) return false;
+    const used = session.hintUsed ?? 0;
+    return used < hintLimit;
+  }, [session, hintLimit]);
+
+  const locked = useMemo(() => {
+    return !session || session.paused || judging || isFinished;
+  }, [session, judging, isFinished]);
+
+  /* ================= 題目取得（v3-1） ================= */
+  const stage = useMemo(() => ((session as any)?.stage ?? "") as string, [session]);
+  const subject = useMemo(() => (session?.subject ?? "") as string, [session]);
+
+  const q: Question | null = useMemo(() => {
+    if (!session) return null;
+    return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
+  }, [session, subject, stage]);
+
+  const stageCount = useMemo(() => {
+    if (!session) return 0;
+    return getStageCount(subject, stage);
+  }, [session, subject, stage]);
+
+  // 把 prompt 第一行搬到「题目」旁边（你前面定的 UI 规则）
+  const promptParts = useMemo(() => {
+    const raw = q?.prompt ?? "";
+    const lines = raw.split("\n");
+    const first = (lines[0] ?? "").trim();
+    const rest = lines.slice(1).join("\n").trim();
+
+    // 经验规则：第一行如果像 "Choose ..." / "選擇 ..." 当成 stem
+    const looksLikeStem =
+      /^choose\b/i.test(first) ||
+      /^選擇/.test(first) ||
+      /^請選擇/.test(first) ||
+      /^選出/.test(first) ||
+      /^choose the\b/i.test(first);
+
+    return {
+      stem: looksLikeStem ? first : "",
+      body: looksLikeStem ? rest : raw,
+    };
+  }, [q]);
+
+  /* ================= 計時（僅在未暫停 & 未完成時） ================= */
   useEffect(() => {
     if (!session) return;
 
+    // 先清掉舊 interval
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
+    // ✅ 完成或暫停就不再計時
     if (session.paused) return;
     if (isFinished) return;
 
     timerRef.current = window.setInterval(() => {
       setSession((prev) => {
         if (!prev) return prev;
-        // 若完成了就不再加秒
-        const done = ((prev.correctCount ?? 0) + (prev.wrongCount ?? 0)) >= totalQuestions;
+        // 若已完成，保险：不要再加
+        const done = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0) >= TOTAL_QUESTIONS;
         if (done) return prev;
 
-        const next = { ...prev, elapsedSec: prev.elapsedSec + 1 };
+        const next = { ...prev, elapsedSec: (prev.elapsedSec ?? 0) + 1 };
         寫入進度(next);
         return next;
       });
@@ -193,153 +238,91 @@ export default function SessionClient() {
         timerRef.current = null;
       }
     };
-  }, [session?.id, session?.paused, isFinished, totalQuestions]);
-
-  /* ================= 取得本題 ================= */
-  const q: Question | null = useMemo(() => {
-    if (!session) return null;
-    if (!subject || !stage) return null;
-    return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
-  }, [session, subject, stage]);
-
-  // 題目文字：把第一行（例如 Choose the correct word:）抽出，放到「題目」旁邊
-  const promptParts = useMemo(() => {
-    const raw = (q?.prompt ?? "").toString();
-    const lines = raw.split("\n");
-    if (lines.length <= 1) return { head: "", body: raw };
-    const head = lines[0].trim();
-    const body = lines.slice(1).join("\n").trim();
-    return { head, body };
-  }, [q]);
-
-  /* ================= 狀態判斷 ================= */
-  const canHint = useMemo(() => {
-    if (!session) return false;
-    if (session.paused) return false;
-    return (session.hintUsed ?? 0) < (session.hintLimit ?? HINT_LIMIT_V3);
-  }, [session]);
-
-  // v3-1 行為規則：
-  // - 作答需按「確定」
-  // - 答對：1.8 秒自動下一題
-  // - 答錯：顯示訊息 + 需手動按「下一題」
-  const answered = useMemo(() => judging || isWrong, [judging, isWrong]);
-  const locked = useMemo(() => {
-    return !session || session.paused || isFinished || answered;
-  }, [session, isFinished, answered]);
+  }, [session?.id, session?.paused, isFinished]);
 
   /* ================= 操作：暫停 ================= */
   function togglePause() {
     if (!session) return;
-
     const next = { ...session, paused: !session.paused };
     寫入進度(next);
     setSession(next);
-
-    // 暫停時不清掉題目狀態，但提示訊息收斂
     setMsg(null);
   }
 
-  /* ================= 操作：提示 ================= */
+  /* ================= 操作：提示（次数 5） ================= */
   function onHint() {
     if (!session) return;
     if (session.paused) return;
 
-    if (!canHint) {
+    const used = session.hintUsed ?? 0;
+    if (used >= hintLimit) {
       setHintText("提示次數已用完");
       return;
     }
 
-    const next = { ...session, hintUsed: (session.hintUsed ?? 0) + 1 };
+    const next = { ...session, hintUsed: used + 1, hintLimit };
     寫入進度(next);
     setSession(next);
 
-    // v3-1：優先用題庫的 hint
-    setHintText(q?.hint ? q.hint : "提示：先找關鍵字，再拆步驟，最後再判斷/計算。");
+    // 若题库有 hint，优先用题库 hint
+    if (q?.hint) setHintText(q.hint);
+    else setHintText("提示：先找關鍵字，再拆步驟，最後再判斷。");
   }
 
-  /* ================= 作答：選擇 / 確定 / 下一題 ================= */
-  function pick(choice: string) {
-    if (!session) return;
-    if (session.paused) return;
-    if (isFinished) return;
-    if (judging || isWrong) return; // 已判定就不再選
+  /* ================= 作答（v3-1：选择 -> 确定 -> 判定/讯息） ================= */
+  function choose(choice: string) {
+    if (locked) return;
     setPickedChoice(choice);
     setMsg(null);
   }
 
-  function confirm() {
+  function confirmAnswer() {
     if (!session) return;
-    if (session.paused) return;
-    if (isFinished) return;
-    if (judging || isWrong) return;
-
+    if (locked) return;
+    if (!q) {
+      setMsg("本階段暫時沒有題目。");
+      return;
+    }
     if (!pickedChoice) {
-      setMsg("請先選擇一個答案，再按「確定」。");
+      setMsg("請先選擇答案，再按「確定」。");
       return;
     }
 
-    const correct = q ? pickedChoice === q.answer : false;
+    const isCorrect = pickedChoice === q.answer;
 
-    // 寫入對/錯累計（不歸零）
-    const next = correct
+    const next = isCorrect
       ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
       : { ...session, wrongCount: (session.wrongCount ?? 0) + 1 };
 
     寫入進度(next);
     setSession(next);
 
-    if (correct) {
-      setJudging(true);
-      setIsWrong(false);
-      setMsg(`✅ 正確！${Math.round(AUTO_NEXT_MS / 100) / 10}s 後自動下一題…`);
+    setJudging(true);
+    setMsg(isCorrect ? "✅ 正確。準備進入下一題…" : "❌ 錯誤。本題已記錄，將於「錯題練習」中再加強。按「下一題」繼續。");
 
-      clearNextTimer();
-      nextTimerRef.current = window.setTimeout(() => {
-        setSession((prev) => {
-          if (!prev) return prev;
-          const done = ((prev.correctCount ?? 0) + (prev.wrongCount ?? 0)) >= totalQuestions;
-          if (done) return prev;
+    // ✅ 这里先维持你当前 v3-1 的行为（先不改自动/手动规则），避免又乱
+    // 如果你下一步要「答對自動、答錯手動」，我们会在 v3-1 step4 / v3-2 一次改好
+    clearNextTimer();
+    nextTimerRef.current = window.setTimeout(() => {
+      setSession((prev) => {
+        if (!prev) return prev;
 
-          const moved = { ...prev, currentIndex: (prev.currentIndex ?? 0) + 1 };
-          寫入進度(moved);
-          return moved;
-        });
+        const newAnswered = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0);
+        if (newAnswered >= TOTAL_QUESTIONS) return prev;
 
-        // 重置本題狀態
-        setPickedChoice(null);
-        setJudging(false);
-        setIsWrong(false);
-        setHintText(null);
-        setMsg(null);
-      }, AUTO_NEXT_MS);
-    } else {
-      // 答錯：不自動跳，給使用者思考；必須手動下一題
+        const moved = { ...prev, currentIndex: (prev.currentIndex ?? 0) + 1 };
+        寫入進度(moved);
+        return moved;
+      });
+
+      setPickedChoice(null);
       setJudging(false);
-      setIsWrong(true);
-      setMsg("❌ 錯誤。你可以看提示後再按「下一題」繼續。");
-    }
+      setHintText(null);
+      setMsg(null);
+    }, 2000);
   }
 
-  function nextManual() {
-    if (!session) return;
-    if (session.paused) return;
-    if (isFinished) return;
-    if (!isWrong) return; // 只有答錯才需要手動下一題
-
-    const moved = { ...session, currentIndex: (session.currentIndex ?? 0) + 1 };
-    寫入進度(moved);
-    setSession(moved);
-
-    // 重置本題狀態
-    setPickedChoice(null);
-    setJudging(false);
-    setIsWrong(false);
-    setHintText(null);
-    setMsg(null);
-  }
-
-  // 離開頁面時清 timer
+  // 離開頁面時清除 timer
   useEffect(() => {
     return () => {
       clearNextTimer();
@@ -348,8 +331,14 @@ export default function SessionClient() {
     };
   }, []);
 
-  /* ================= 完成畫面（完成後秒數不再跑） ================= */
+  /* ================= 完成畫面 ================= */
   if (session && isFinished) {
+    // ✅ 进完成页前，确保计时器停掉
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     return (
       <main style={wrap}>
         <div style={card}>
@@ -362,15 +351,15 @@ export default function SessionClient() {
           <div style={{ ...row, alignItems: "center" }}>
             <span style={pill}>{session.subject}</span>
             <span style={pill}>{(session as any).stage ?? "-"}</span>
-            <span style={pill}>題數：{totalQuestions}/{totalQuestions}</span>
-            <span style={pill}>用時：{格式化時間(session.elapsedSec)}</span>
+            <span style={pill}>題數：{TOTAL_QUESTIONS}/{TOTAL_QUESTIONS}</span>
+            <span style={pill}>用時：{格式化時間(session.elapsedSec ?? 0)}</span>
           </div>
 
           <div style={{ height: 8 }} />
 
           <div style={row}>
-            <span style={pill}>對：{session.correctCount ?? 0}</span>
-            <span style={pill}>錯：{session.wrongCount ?? 0}</span>
+            <span style={pill}>答對：{session.correctCount ?? 0}</span>
+            <span style={pill}>答錯：{session.wrongCount ?? 0}</span>
           </div>
 
           <div style={{ height: 12 }} />
@@ -398,7 +387,7 @@ export default function SessionClient() {
   /* ================= UI ================= */
   return (
     <main style={wrap}>
-      {/* ✅ 固定右上：回上一頁（靠近「關於」右側） */}
+      {/* ✅ 回上一頁固定右上 */}
       <button style={fixedTopRightBtn} onClick={backToPractice}>
         ← 回上一頁
       </button>
@@ -414,18 +403,20 @@ export default function SessionClient() {
             justifyContent: "space-between",
           }}
         >
-          {/* 左側：英文 / A1 / 第 1/20（你已把「科目：」拿掉） */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {/* ✅ 科目不加「科目：」避免手机挤到第二行（你已做的方向） */}
             <span style={pill}>{session.subject}</span>
             <span style={pill}>{(session as any).stage ?? "-"}</span>
+
+            {/* ✅ 题数用「第 x/20」 */}
             <span style={pill}>
-              第 {Math.min((session.currentIndex ?? 0) + 1, totalQuestions)}/{totalQuestions}
+              第 {Math.min((session.currentIndex ?? 0) + 1, TOTAL_QUESTIONS)}/{TOTAL_QUESTIONS}
             </span>
           </div>
 
           {/* 右側：計時 + 暫停 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={pill}>⏱ {格式化時間(session.elapsedSec)}</span>
+            <span style={pill}>⏱ {格式化時間(session.elapsedSec ?? 0)}</span>
 
             <button
               onClick={togglePause}
@@ -450,8 +441,11 @@ export default function SessionClient() {
       <div style={{ height: 10 }} />
 
       {/* ===== 題目區（v3-1：題庫）===== */}
-      <div style={card}>
-        {/* 題目標題列：把 prompt 第一行搬到「題目」旁邊 */}
+      <div style={{ ...card, position: "relative" }}>
+        {/* ✅ 浮水印：题目区（三个字置中） */}
+        <div style={watermarkCenter}>題目區</div>
+
+        {/* 題目標題列：左=題目 + stem，右侧不放任何 pill（你要拿掉那 3 个标签） */}
         <div
           style={{
             display: "flex",
@@ -462,40 +456,37 @@ export default function SessionClient() {
             marginBottom: 8,
           }}
         >
-
-          {/* ✅ 把對/錯放到提示次數後面（同一排、固定位置） */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={pill}>
-              提示 {session.hintUsed ?? 0}/{session.hintLimit ?? HINT_LIMIT_V3}
-            </span>
-            <span style={pill}>對 {session.correctCount ?? 0}</span>
-            <span style={pill}>錯 {session.wrongCount ?? 0}</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontWeight: 900, fontSize: 22 }}>題目</div>
+            {promptParts.stem ? <div style={{ opacity: 0.75 }}>{promptParts.stem}</div> : null}
           </div>
+
+          {/* ✅ 右侧刻意留空：不放 提示/对/错 */}
+          <div />
         </div>
 
-        <div style={{ opacity: 0.9, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
+        {/* 題目內容 */}
+        <div style={{ opacity: 0.95, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
           {promptParts.body || q?.prompt || "（此階段暫無題目）"}
         </div>
 
         <div style={{ height: 10 }} />
 
         {/* 選項 */}
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {(q?.choices ?? []).map((c) => {
-            const picked = pickedChoice === c;
+            const active = pickedChoice === c;
             return (
               <button
                 key={c}
-                onClick={() => pick(c)}
-                disabled={session.paused || isFinished || judging || isWrong}
                 style={{
                   ...btn,
                   textAlign: "left",
-                  padding: "12px 12px",
-                  border: picked ? "1px solid #111" : "1px solid #ddd",
-                  background: picked ? "#f5f5f5" : "#fff",
-                  opacity: session.paused || isFinished || judging || isWrong ? 0.6 : 1,
+                  border: active ? "1px solid #111" : "1px solid #ddd",
+                  opacity: locked ? 0.55 : 1,
                 }}
+                onClick={() => choose(c)}
+                disabled={locked}
               >
                 {c}
               </button>
@@ -505,93 +496,85 @@ export default function SessionClient() {
 
         <div style={{ height: 10 }} />
 
-        {/* 操作按钮：確定 /（答錯才出現）下一題 */}
+        {/* 操作列：確定 + 塗鴉牆（沿用你之前习惯） */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <button
             style={{
               ...btnPrimary,
-              opacity: session.paused || isFinished || judging || isWrong || !pickedChoice ? 0.5 : 1,
-              cursor:
-                session.paused || isFinished || judging || isWrong || !pickedChoice ? "not-allowed" : "pointer",
+              opacity: locked || !pickedChoice ? 0.5 : 1,
+              cursor: locked || !pickedChoice ? "not-allowed" : "pointer",
             }}
-            onClick={confirm}
-            disabled={session.paused || isFinished || judging || isWrong || !pickedChoice}
+            onClick={confirmAnswer}
+            disabled={locked || !pickedChoice}
           >
             確定
           </button>
 
-          {/* ✅ 只有答錯才需要手動下一題 */}
-          {isWrong ? (
-            <button style={btn} onClick={nextManual} disabled={session.paused || isFinished}>
-              下一題 →
-            </button>
-          ) : null}
-
-          {/* ✅ 塗鴉牆（你要的位置：題目區右側/這一排） */}
           <button style={btn} onClick={() => setWhiteboardOpen(true)} disabled={session.paused}>
             📝 塗鴉牆
           </button>
         </div>
 
-        {msg ? (
-          <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div>
+        {msg ? <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div> : null}
+
+        {/* 小提示：stageCount 仅用于你调试题库是否足够 */}
+        {stageCount === 0 ? (
+          <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#fff8e6" }}>
+            ⚠️ 這個階段目前題庫數量為 0，請確認 question-bank.ts 的 subject/stage 名稱是否一致。
+          </div>
         ) : null}
       </div>
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 提示區：只顯示提示內容（按鈕已放在題目區）===== */}
-      {/* ===== 提示區：顯示提示 + 次數 + 對/錯（回到 v2-9 的位置）===== */}
-<div style={card}>
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      flexWrap: "wrap",
-      marginBottom: 8,
-    }}
-  >
-    {/* 左側：顯示提示 + 次數 + 對/錯 */}
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <button
-        style={{ ...btn, opacity: !session.paused && canHint ? 1 : 0.5 }}
-        onClick={onHint}
-        disabled={session.paused || !canHint}
-      >
-        顯示提示
-      </button>
+      {/* ===== 提示區（这里才是：顯示提示 + 次數 + 對/錯 固定在同一排）===== */}
+      <div style={card}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button
+              style={{ ...btn, opacity: !session.paused && canHint ? 1 : 0.5 }}
+              onClick={onHint}
+              disabled={session.paused || !canHint}
+            >
+              顯示提示
+            </button>
 
-      <span style={pill}>
-        {session.hintUsed ?? 0}/{session.hintLimit ?? HINT_LIMIT_V3}
-      </span>
+            <span style={pill}>
+              {session.hintUsed ?? 0}/{hintLimit}
+            </span>
 
-      <span style={pill}>對 {session.correctCount ?? 0}</span>
-      <span style={pill}>錯 {session.wrongCount ?? 0}</span>
-    </div>
+            {/* ✅ 对/错固定在提示次数后面（你要的最终位置） */}
+            <span style={pill}>對 {session.correctCount ?? 0}</span>
+            <span style={pill}>錯 {session.wrongCount ?? 0}</span>
+          </div>
 
-    {/* 右側：塗鴉牆 */}
-    <button style={btn} onClick={() => setWhiteboardOpen(true)} disabled={session.paused}>
-      📝 塗鴉牆
-    </button>
-  </div>
+          {/* 右側：塗鴉牆（如果你更喜欢在提示区也放按钮，这里保留；否则删掉也行） */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* 这里留空也可以 */}
+          </div>
+        </div>
 
-  <div
-    style={{
-      padding: 12,
-      borderRadius: 12,
-      border: "1px dashed #e0e0e0",
-      opacity: hintText ? 1 : 0.7,
-      lineHeight: 1.8,
-      whiteSpace: "pre-wrap",
-    }}
-  >
-    {hintText ? hintText : "尚未使用提示"}
-  </div>
-</div>
+        <div
+          style={{
+            marginTop: 10,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px dashed #e0e0e0",
+            opacity: hintText ? 1 : 0.7,
+          }}
+        >
+          {hintText ? hintText : "提示可在作答前使用，協助理解題目。"}
+        </div>
+      </div>
 
-      {/* ✅ Whiteboard 本體 */}
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
     </main>
   );
