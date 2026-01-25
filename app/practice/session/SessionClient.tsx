@@ -367,7 +367,7 @@ export default function SessionClient() {
     setSession(next);
 
     setJudging(true);
-    setMsg(isCorrect ? "✅ 正確。準備進入下一題…" : "❌ 錯誤。本題已記錄，將於「錯題練習」中再加強。");
+    setMsg(isCorrect ? "✅ 正確。準備進入下一題…" : "❌ 錯誤。本題已記錄「錯題練習」中再加強。");
 
     clearNextTimer();
     nextTimerRef.current = window.setTimeout(() => {
