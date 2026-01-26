@@ -4,8 +4,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { 取得目前進度id, 讀取進度, type PracticeSession } from "../../lib/session";
-import { getQuestionById, type Question } from "../practice/session/question-bank";
+import { 取得目前進度id, 讀取進度, type PracticeSession } from "../../../lib/session";
+import { getQuestionById, type Question } from "../session/question-bank";
 
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
 
