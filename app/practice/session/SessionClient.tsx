@@ -15,12 +15,7 @@ import {
   type PracticeSession,
 } from "../../../lib/session";
 
-import {
-  getQuestionByIndex,
-  getStageCount,
-  getQuestionById, // ✅ v3-2 Step1
-  type Question,
-} from "./question-bank";
+import { getQuestionByIndex, getStageCount, getQuestionById, type Question } from "./question-bank";
 
 /* ================= 基本樣式（沿用 v2-9 基底，不亂動） ================= */
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
@@ -252,10 +247,17 @@ export default function SessionClient() {
   const stage = useMemo(() => ((session as any)?.stage ?? "") as string, [session]);
   const subject = useMemo(() => (session?.subject ?? "") as string, [session]);
 
-  const q: Question | null = useMemo(() => {
+    const q: Question | null = useMemo(() => {
     if (!session) return null;
+
+    // ✅ 錯題重練：用 qid 直接抓題
+    if (isWrongMode && wrongQid) {
+      return getQuestionById(wrongQid);
+    }
+
+    // ✅ 正常練習：照 index
     return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
-  }, [session, subject, stage]);
+  }, [session, subject, stage, isWrongMode, wrongQid]);
 
   const stageCount = useMemo(() => {
     if (!session) return 0;
