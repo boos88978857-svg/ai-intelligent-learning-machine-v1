@@ -428,28 +428,16 @@ function pushWrongId(prev: PracticeSession, qid: string): string[] {
 
     const isCorrect = pickedChoice === q.answer;
 
-    // ✅ v3-2 Step1：答錯就把題目 id 存進 session.wrongIds
-    let nextWrongIds = wrongIds;
-    if (!isCorrect) {
-      const set = new Set<string>(wrongIds);
-      set.add(q.id);
-      nextWrongIds = Array.from(set);
-    }
-
     const next = isCorrect
   ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
   : {
-      ...session,
-      wrongCount: (session.wrongCount ?? 0) + 1,
+      ...session,wrongCount: (session.wrongCount ?? 0) + 1,
       // ✅ v3-3：記錄錯題（去重）
       wrongQuestionIds: pushWrongId(session, q.id),
     };
 
-    // ✅ 若答對也要保留既有 wrongIds（避免被覆蓋消失）
-    const nextFinal = isCorrect ? ({ ...next, ...( { wrongIds: (session as any).wrongIds ?? wrongIds } as any ) } as any) : next;
-
-    寫入進度(nextFinal);
-    setSession(nextFinal);
+寫入進度(next);
+setSession(next);
 
     setJudging(true);
 
