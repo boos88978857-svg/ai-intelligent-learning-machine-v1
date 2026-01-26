@@ -462,3 +462,18 @@ export function getStageCount(subject: string, stage: string): number {
 export function getQuestionById(id: string): Question | null {
   return BANK.find((q) => q.id === id) ?? null;
 }
+
+// ======================
+// v3-3：錯題本需要的查詢
+// ======================
+
+export function getQuestionById(id: string): Question | null {
+  return BANK.find((q) => q.id === id) ?? null;
+}
+
+// 回傳「這題在該 subject+stage 的第幾題（0-based）」
+// 找不到就回傳 -1
+export function getIndexInStageById(subject: string, stage: string, id: string): number {
+  const list = BANK.filter((q) => q.subject === subject && q.stage === stage);
+  return list.findIndex((q) => q.id === id);
+}
