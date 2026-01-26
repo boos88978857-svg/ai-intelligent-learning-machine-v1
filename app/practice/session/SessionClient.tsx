@@ -383,6 +383,13 @@ export default function SessionClient() {
   function goNextManual() {
     if (!session) return;
 
+  // ✅ 修復：如果上一題答錯紅色還沒退就按「下一題」，先強制恢復
+  if (wmToneTimerRef.current) {
+    window.clearTimeout(wmToneTimerRef.current);
+    wmToneTimerRef.current = null;
+  }
+  setWmTone("normal");
+
     setSession((prev) => {
       if (!prev) return prev;
 
@@ -396,6 +403,13 @@ export default function SessionClient() {
 
     goNextCommonReset();
   }
+
+// ✅ v3-3：把錯題 id 記到 session.wrongQuestionIds（去重）
+function pushWrongId(prev: PracticeSession, qid: string): string[] {
+  const cur = ((prev as any).wrongQuestionIds ?? []) as string[];
+  if (cur.includes(qid)) return cur;
+  return [...cur, qid];
+}
 
   function confirmAnswer() {
     if (!session) return;
@@ -423,13 +437,13 @@ export default function SessionClient() {
     }
 
     const next = isCorrect
-      ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
-      : {
-          ...session,
-          wrongCount: (session.wrongCount ?? 0) + 1,
-          // 存在 session 裡（不改 lib/session 型別）
-          ...( { wrongIds: nextWrongIds } as any ),
-        };
+  ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
+  : {
+      ...session,
+      wrongCount: (session.wrongCount ?? 0) + 1,
+      // ✅ v3-3：記錄錯題（去重）
+      wrongQuestionIds: pushWrongId(session, q.id),
+    };
 
     // ✅ 若答對也要保留既有 wrongIds（避免被覆蓋消失）
     const nextFinal = isCorrect ? ({ ...next, ...( { wrongIds: (session as any).wrongIds ?? wrongIds } as any ) } as any) : next;
