@@ -15,7 +15,10 @@ import {
   type PracticeSession,
 } from "../../../lib/session";
 
-import { getQuestionByIndex, getStageCount, getQuestionById, type Question } from "./question-bank";
+import { getQuestionByIndex, getStageCount, type Question } from "./question-bank";
+
+// ✅ v3-3：錯題本（依 科目 -> 階段 分桶）
+import { addWrongQuestion } from "../../../lib/wrong-book";
 
 /* ================= 基本樣式（沿用 v2-9 基底，不亂動） ================= */
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
@@ -77,17 +80,14 @@ const watermarkBase: React.CSSProperties = {
   left: "50%",
   top: "50%",
   transform: "translate(-50%, -50%)",
-
   fontSize: 34,
   fontWeight: 900,
   letterSpacing: 10,
   fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display'",
-
   pointerEvents: "none",
   userSelect: "none",
   whiteSpace: "nowrap",
-
-  transition: "opacity 240ms ease, filter 240ms ease, color 240ms ease",
+  transition: "opacity 240ms ease, filter 240ms ease",
 };
 
 function getWatermarkStyle(wmVisible: boolean, wmTone: "normal" | "wrong"): React.CSSProperties {
@@ -108,10 +108,6 @@ export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-// ✅ 錯題重練：從 /practice/session?...&retry=xxx 取得題目 id
-const wrongQid = sp.get("retry");
-const isWrongMode = !!wrongQid;
-
   const [session, setSession] = useState<PracticeSession | null>(null);
 
   // UI
@@ -125,7 +121,7 @@ const isWrongMode = !!wrongQid;
   // ✅ Step4：答错才开放“下一题”按钮；且答错后不允许改答案重做
   const [canGoNext, setCanGoNext] = useState(false);
 
-  // judging：确认后锁定题目区
+  // judging：提交后锁定题目区
   const [judging, setJudging] = useState(false);
 
   // 自动下一题 timer
@@ -160,10 +156,8 @@ const isWrongMode = !!wrongQid;
   }
 
   function wmFadeOnQuestionChange() {
-    if (wmFadeTimerRef.current) {
-      window.clearTimeout(wmFadeTimerRef.current);
-      wmFadeTimerRef.current = null;
-    }
+    // 題目切換：淡出 -> 再淡入
+    clearWmTimers();
     setWmVisible(false);
     wmFadeTimerRef.current = window.setTimeout(() => {
       setWmVisible(true);
@@ -172,6 +166,7 @@ const isWrongMode = !!wrongQid;
   }
 
   function wmPulseOnWrong(durationMs: number) {
+    // 答錯：短暫變紅，之後恢復
     if (wmToneTimerRef.current) {
       window.clearTimeout(wmToneTimerRef.current);
       wmToneTimerRef.current = null;
@@ -183,12 +178,23 @@ const isWrongMode = !!wrongQid;
     }, durationMs);
   }
 
+  function wmResetNow() {
+    // ✅ 你反映的「按下一題紅色卡住」：按下一題就立刻恢復
+    if (wmToneTimerRef.current) {
+      window.clearTimeout(wmToneTimerRef.current);
+      wmToneTimerRef.current = null;
+    }
+    setWmTone("normal");
+  }
+
+  // ✅ 题目切换时：浮水印 fade
   useEffect(() => {
     if (!session) return;
     wmFadeOnQuestionChange();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.subject, (session as any)?.stage, session?.currentIndex]);
 
+  // ✅ 离开页：清浮水印 timers
   useEffect(() => {
     return () => {
       clearWmTimers();
@@ -223,6 +229,7 @@ const isWrongMode = !!wrongQid;
     setJudging(false);
     setCanGoNext(false);
     clearNextTimer();
+    wmResetNow();
   }, [router, sp]);
 
   /* ================= 計算狀態 ================= */
@@ -234,6 +241,7 @@ const isWrongMode = !!wrongQid;
   const isFinished = useMemo(() => answeredCount >= TOTAL_QUESTIONS, [answeredCount]);
 
   const hintLimit = useMemo(() => {
+    // 固定 5 次：若 session.hintLimit 有值就用它，沒有就 fallback 5
     return (session?.hintLimit ?? 5) as number;
   }, [session]);
 
@@ -243,6 +251,7 @@ const isWrongMode = !!wrongQid;
     return used < hintLimit;
   }, [session, hintLimit]);
 
+  // 锁定题目区选择：暂停/判定中/完成/已提交后（judging）
   const locked = useMemo(() => {
     return !session || session.paused || judging || isFinished;
   }, [session, judging, isFinished]);
@@ -251,23 +260,17 @@ const isWrongMode = !!wrongQid;
   const stage = useMemo(() => ((session as any)?.stage ?? "") as string, [session]);
   const subject = useMemo(() => (session?.subject ?? "") as string, [session]);
 
-    const q: Question | null = useMemo(() => {
+  const q: Question | null = useMemo(() => {
     if (!session) return null;
-
-    // ✅ 錯題重練：用 qid 直接抓題
-    if (isWrongMode && wrongQid) {
-      return getQuestionById(wrongQid);
-    }
-
-    // ✅ 正常練習：照 index
     return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
-  }, [session, subject, stage, isWrongMode, wrongQid]);
+  }, [session, subject, stage]);
 
   const stageCount = useMemo(() => {
     if (!session) return 0;
     return getStageCount(subject, stage);
   }, [session, subject, stage]);
 
+  // 把 prompt 第一行搬到题干旁（规则：Choose/選擇 开头）
   const promptParts = useMemo(() => {
     const raw = q?.prompt ?? "";
     const lines = raw.split("\n");
@@ -286,29 +289,6 @@ const isWrongMode = !!wrongQid;
       body: looksLikeStem ? rest : raw,
     };
   }, [q]);
-
-  /* ================= v3-2 Step1：錯題池（只記錄＋log，不改 UI） ================= */
-  const wrongIds = useMemo<string[]>(() => {
-    if (!session) return [];
-    const arr = (session as any).wrongIds;
-    return Array.isArray(arr) ? arr : [];
-  }, [session]);
-
-  function getWrongQuestions(s: PracticeSession | null): Question[] {
-    if (!s) return [];
-    const ids = Array.isArray((s as any).wrongIds) ? ((s as any).wrongIds as string[]) : [];
-    return ids.map((id) => getQuestionById(id)).filter((x): x is Question => !!x);
-  }
-
-  // ✅ Debug：每次錯題池改變，印出目前錯題（開發用）
-  useEffect(() => {
-    if (!session) return;
-    // 只 log，不改 UI
-    // eslint-disable-next-line no-console
-    console.log("[v3-2] wrongIds =", wrongIds);
-    // eslint-disable-next-line no-console
-    console.log("[v3-2] wrongQuestions =", getWrongQuestions(session).map((qq) => qq.id));
-  }, [wrongIds, session]);
 
   /* ================= 計時（僅在未暫停 & 未完成時） ================= */
   useEffect(() => {
@@ -384,17 +364,14 @@ const isWrongMode = !!wrongQid;
     setHintText(null);
     setMsg(null);
     setCanGoNext(false);
+    wmResetNow();
   }
 
   function goNextManual() {
     if (!session) return;
 
-  // ✅ 修復：如果上一題答錯紅色還沒退就按「下一題」，先強制恢復
-  if (wmToneTimerRef.current) {
-    window.clearTimeout(wmToneTimerRef.current);
-    wmToneTimerRef.current = null;
-  }
-  setWmTone("normal");
+    // ✅ 手動下一題前，把紅色浮水印立刻復原（避免卡住）
+    wmResetNow();
 
     setSession((prev) => {
       if (!prev) return prev;
@@ -409,13 +386,6 @@ const isWrongMode = !!wrongQid;
 
     goNextCommonReset();
   }
-
-// ✅ v3-3：把錯題 id 記到 session.wrongQuestionIds（去重）
-function pushWrongId(prev: PracticeSession, qid: string): string[] {
-  const cur = ((prev as any).wrongQuestionIds ?? []) as string[];
-  if (cur.includes(qid)) return cur;
-  return [...cur, qid];
-}
 
   function confirmAnswer() {
     if (!session) return;
@@ -434,17 +404,15 @@ function pushWrongId(prev: PracticeSession, qid: string): string[] {
 
     const isCorrect = pickedChoice === q.answer;
 
+    // 先写入对错
     const next = isCorrect
-  ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
-  : {
-      ...session,wrongCount: (session.wrongCount ?? 0) + 1,
-      // ✅ v3-3：記錄錯題（去重）
-      wrongQuestionIds: pushWrongId(session, q.id),
-    };
+      ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
+      : { ...session, wrongCount: (session.wrongCount ?? 0) + 1 };
 
-寫入進度(next);
-setSession(next);
+    寫入進度(next);
+    setSession(next);
 
+    // ✅ 提交后锁定（不允许改答案重做）
     setJudging(true);
 
     if (isCorrect) {
@@ -467,18 +435,26 @@ setSession(next);
         goNextCommonReset();
       }, 1800);
     } else {
-      setMsg("❌ 錯誤。本題已記錄错题重练，按「下一題」繼續。");
+      // ✅ 答错：写入错题本（依 subject -> stage 分桶）
+      addWrongQuestion(subject, stage, q.id);
+
+      setMsg("❌ 錯誤。本題已記錄至錯題本；按「下一題」繼續。");
       setCanGoNext(true);
+
+      // ✅ 红色浮水印提示（你要跟自動時間一致就用 1800）
       wmPulseOnWrong(1800);
     }
   }
 
+  // 離開頁面時清除 timer
   useEffect(() => {
     return () => {
       clearNextTimer();
       if (timerRef.current) window.clearInterval(timerRef.current);
       timerRef.current = null;
+      clearWmTimers();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ================= 完成畫面 ================= */
@@ -540,7 +516,7 @@ setSession(next);
         ← 回上一頁
       </button>
 
-      {/* ===== 狀態卡 ===== */}
+      {/* ===== 狀態卡（右側放：計時 + 暫停）===== */}
       <div style={card}>
         <div
           style={{
@@ -585,7 +561,7 @@ setSession(next);
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 題目區 ===== */}
+      {/* ===== 題目區（題庫）===== */}
       <div style={{ ...card, position: "relative" }}>
         <div style={getWatermarkStyle(wmVisible, wmTone)}>題目區</div>
 
@@ -677,7 +653,7 @@ setSession(next);
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 提示區 ===== */}
+      {/* ===== 提示區（顯示提示 + 次數 + 對/錯 固定同一排）===== */}
       <div style={card}>
         <div
           style={{
