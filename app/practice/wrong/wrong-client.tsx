@@ -1,11 +1,16 @@
 // app/practice/wrong/wrong-client.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { getQuestionById, type Question } from "../session/question-bank";
+import {
+  取得目前進度id,
+  讀取進度,
+  type PracticeSession,
+} from "../../../lib/session";
 
+import { getQuestionById, type Question } from "../session/question-bank";
 /** ===== UI ===== */
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
 
@@ -120,120 +125,81 @@ async function removeWrongId(id: string): Promise<void> {
 
 export default function WrongClient() {
   const router = useRouter();
-
-  const [ids, setIds] = useState<string[]>([]);
-  const [pos, setPos] = useState(0);
-
-  const [picked, setPicked] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  // ✅ 每題提示 3 次（重練專用，與主學習區無關）
-  const [hintUsed, setHintUsed] = useState(0);
-  const [hintText, setHintText] = useState<string | null>(null);
-
-  const [judging, setJudging] = useState(false);
-  const timerRef = useRef<number | null>(null);
-
-  async function reload() {
-    const list = await readWrongIds();
-    setIds(list);
-    setPos((p) => (list.length === 0 ? 0 : Math.min(p, list.length - 1)));
-  }
+  const [session, setSession] = useState<PracticeSession | null>(null);
 
   useEffect(() => {
-    reload();
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const id = 取得目前進度id();
+    if (!id) return;
+
+    const s = 讀取進度(id);
+    setSession(s ?? null);
   }, []);
 
-  const currentId = useMemo(() => ids[pos] ?? null, [ids, pos]);
-  const q: Question | null = useMemo(() => (currentId ? getQuestionById(currentId) : null), [currentId]);
+  const wrongIds = useMemo(() => {
+    const arr = ((session as any)?.wrongQuestionIds ?? []) as string[];
+    return Array.from(new Set(arr));
+  }, [session]);
 
-  // 切題時重置本題狀態
-  useEffect(() => {
-    setPicked(null);
-    setMsg(null);
-    setHintUsed(0);
-    setHintText(null);
-    setJudging(false);
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = null;
-  }, [currentId]);
+  return (
+    <main style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 0" }}>
+      <div style={{ padding: 14, borderRadius: 18, background: "#fff", border: "1px solid #e6e6e6" }}>
+        <div style={{ fontWeight: 900, fontSize: 28 }}>錯題本</div>
 
-  const canHint = hintUsed < HINT_LIMIT_WRONG;
+        <div style={{ height: 10 }} />
 
-  function onPick(choice: string) {
-    if (judging) return;
-    setPicked(choice);
-    setMsg(null);
-  }
+        {!session ? (
+          <div style={{ opacity: 0.7 }}>讀取中…</div>
+        ) : wrongIds.length === 0 ? (
+          <div style={{ opacity: 0.75 }}>
+            目前沒有錯題。去做題後再回來重練。
+          </div>
+        ) : (
+          <>
+            <div style={{ opacity: 0.8 }}>目前錯題數：{wrongIds.length}</div>
+            <div style={{ height: 10 }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {wrongIds.map((id) => (
+                <button
+                  key={id}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid #ddd",
+                    background: "#fff",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    // 先只导航到 session，并带上 wrong=1 + qid
+                    router.push(`/practice/session?wrong=1&qid=${encodeURIComponent(id)}`);
+                  }}
+                >
+                  {id}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
-  function onHint() {
-    if (!q) return;
-    if (!canHint) {
-      setHintText("提示次數已用完（本題 3 次）。");
-      return;
-    }
-    const nextUsed = hintUsed + 1;
-    setHintUsed(nextUsed);
+        <div style={{ height: 12 }} />
 
-    // ✅ 不露正解：只给“理解题意/方向”，优先用题库 hint
-    if (q.hint) setHintText(q.hint);
-    else setHintText("提示：先看題幹關鍵字，再用排除法縮小選項。");
-  }
-
-  async function onConfirm() {
-    if (!q) return;
-    if (!picked) {
-      setMsg("請先選擇一個答案，再按「確定」。");
-      return;
-    }
-    if (judging) return;
-
-    setJudging(true);
-
-    const isCorrect = picked === q.answer;
-
-    if (isCorrect) {
-      setMsg("✅ 正確！此題將從錯題本移除。");
-
-      // ✅ 答對：移除錯題，1.2 秒後載入下一題
-      await removeWrongId(q.id);
-
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(async () => {
-        await reload();
-        setJudging(false);
-      }, 1200);
-    } else {
-      // ✅ 答錯：不顯示正解、不自動下一題，讓使用者可以改選再試
-      setMsg("❌ 不正確。你可以再選一次，或先使用提示（每題 3 次）。");
-      setJudging(false);
-    }
-  }
-
-  function onSkipNext() {
-    if (ids.length === 0) return;
-    setPos((p) => (p + 1) % ids.length);
-  }
-
-  if (ids.length === 0) {
-    return (
-      <main style={wrap}>
-        <div style={card}>
-          <div style={{ fontWeight: 900, fontSize: 26 }}>錯題本</div>
-          <div style={{ opacity: 0.75, lineHeight: 1.8, marginTop: 8 }}>目前沒有錯題。去做題後再回來重練。</div>
-          <div style={{ height: 12 }} />
-          <button style={btnPrimary} onClick={() => router.replace("/practice")}>
-            ← 回學習區
-          </button>
-        </div>
-      </main>
-    );
-  }
+        <button
+          style={{
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid #111",
+            background: "#111",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+          onClick={() => router.push("/practice")}
+        >
+          ← 回學習區
+        </button>
+      </div>
+    </main>
+  );
+}
 
   return (
     <main style={wrap}>
