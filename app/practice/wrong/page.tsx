@@ -2,11 +2,9 @@
 import React, { Suspense } from "react";
 import WrongClient from "./wrong-client";
 
-export const dynamic = "force-dynamic";
-
 export default function WrongPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 16 }}>讀取中…</div>}>
+    <Suspense fallback={<main style={{ maxWidth: 1100, margin: "0 auto", padding: "18px" }}>讀取中…</main>}>
       <WrongClient />
     </Suspense>
   );
