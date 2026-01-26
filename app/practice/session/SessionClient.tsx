@@ -108,6 +108,10 @@ export default function SessionClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
+// ✅ 錯題重練：從 /practice/session?...&retry=xxx 取得題目 id
+const wrongQid = sp.get("retry");
+const isWrongMode = !!wrongQid;
+
   const [session, setSession] = useState<PracticeSession | null>(null);
 
   // UI
