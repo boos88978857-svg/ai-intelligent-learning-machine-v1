@@ -457,3 +457,8 @@ export function getQuestionByIndex(subject: string, stage: string, index: number
 export function getStageCount(subject: string, stage: string): number {
   return BANK.filter((q) => q.subject === subject && q.stage === stage).length;
 }
+
+// ✅ v3-2 Step1：用 id 找題目（錯題池需要）
+export function getQuestionById(id: string): Question | null {
+  return BANK.find((q) => q.id === id) ?? null;
+}
