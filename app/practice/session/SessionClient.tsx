@@ -15,7 +15,12 @@ import {
   type PracticeSession,
 } from "../../../lib/session";
 
-import { getQuestionByIndex, getStageCount, type Question } from "./question-bank";
+import {
+  getQuestionByIndex,
+  getStageCount,
+  getQuestionById, // ✅ v3-2 Step1
+  type Question,
+} from "./question-bank";
 
 /* ================= 基本樣式（沿用 v2-9 基底，不亂動） ================= */
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
@@ -87,28 +92,16 @@ const watermarkBase: React.CSSProperties = {
   userSelect: "none",
   whiteSpace: "nowrap",
 
-  transition: "opacity 240ms ease, filter 240ms ease",
+  transition: "opacity 240ms ease, filter 240ms ease, color 240ms ease",
 };
 
-function getWatermarkStyle(
-  wmVisible: boolean,
-  wmTone: "normal" | "wrong"
-): React.CSSProperties {
+function getWatermarkStyle(wmVisible: boolean, wmTone: "normal" | "wrong"): React.CSSProperties {
   const isWrong = wmTone === "wrong";
-
   return {
     ...watermarkBase,
-
-    // 透明度：正常显示 / 隐藏
     opacity: wmVisible ? 0.06 : 0,
-
-    // ✅ 关键：直接给颜色，wrong 才会变红
     color: isWrong ? "rgba(220, 38, 38, 1)" : "rgba(17, 17, 17, 1)",
-
-    // ✅ 让红色“看得见但不抢题目”（可删）
     textShadow: isWrong ? "0 0 1px rgba(220,38,38,0.35)" : "none",
-
-    // ✅ 可选：让普通态更“像水印”（灰一点）
     filter: isWrong ? "none" : "grayscale(1)",
   };
 }
@@ -133,15 +126,15 @@ export default function SessionClient() {
   // ✅ Step4：答错才开放“下一题”按钮；且答错后不允许改答案重做
   const [canGoNext, setCanGoNext] = useState(false);
 
-  // judging：保持你原本“确认后锁定题目区”的逻辑
+  // judging：确认后锁定题目区
   const [judging, setJudging] = useState(false);
 
   // 自动下一题 timer
   const nextTimerRef = useRef<number | null>(null);
 
-  // ✅ 浮水印动态（v3-1 Step3）
-  const [wmVisible, setWmVisible] = useState(true); // 控制淡入淡出
-  const [wmTone, setWmTone] = useState<"normal" | "wrong">("normal"); // 答错短暂变色
+  // ✅ 浮水印动态
+  const [wmVisible, setWmVisible] = useState(true);
+  const [wmTone, setWmTone] = useState<"normal" | "wrong">("normal");
   const wmFadeTimerRef = useRef<number | null>(null);
   const wmToneTimerRef = useRef<number | null>(null);
 
@@ -167,18 +160,18 @@ export default function SessionClient() {
     wmToneTimerRef.current = null;
   }
 
-  // 题目切换：淡出 -> 再淡入
   function wmFadeOnQuestionChange() {
-    clearWmTimers();
+    if (wmFadeTimerRef.current) {
+      window.clearTimeout(wmFadeTimerRef.current);
+      wmFadeTimerRef.current = null;
+    }
     setWmVisible(false);
-    // 60ms 让 transition 生效
     wmFadeTimerRef.current = window.setTimeout(() => {
       setWmVisible(true);
       wmFadeTimerRef.current = null;
     }, 60);
   }
 
-  // 答错：短暂变色（你要几秒就改这里的 ms）
   function wmPulseOnWrong(durationMs: number) {
     if (wmToneTimerRef.current) {
       window.clearTimeout(wmToneTimerRef.current);
@@ -191,14 +184,12 @@ export default function SessionClient() {
     }, durationMs);
   }
 
-  // ✅ 题目切换时：浮水印 fade
   useEffect(() => {
     if (!session) return;
     wmFadeOnQuestionChange();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.subject, (session as any)?.stage, session?.currentIndex]);
 
-  // ✅ 离开页：清浮水印 timers
   useEffect(() => {
     return () => {
       clearWmTimers();
@@ -244,7 +235,6 @@ export default function SessionClient() {
   const isFinished = useMemo(() => answeredCount >= TOTAL_QUESTIONS, [answeredCount]);
 
   const hintLimit = useMemo(() => {
-    // 固定 5 次：若 session.hintLimit 有值就用它，沒有就 fallback 5
     return (session?.hintLimit ?? 5) as number;
   }, [session]);
 
@@ -254,7 +244,6 @@ export default function SessionClient() {
     return used < hintLimit;
   }, [session, hintLimit]);
 
-  // 锁定题目区选择：暂停/判定中/完成/已提交后（judging）
   const locked = useMemo(() => {
     return !session || session.paused || judging || isFinished;
   }, [session, judging, isFinished]);
@@ -273,7 +262,6 @@ export default function SessionClient() {
     return getStageCount(subject, stage);
   }, [session, subject, stage]);
 
-  // 把 prompt 第一行搬到题干旁（规则：Choose/選擇 开头）
   const promptParts = useMemo(() => {
     const raw = q?.prompt ?? "";
     const lines = raw.split("\n");
@@ -292,6 +280,29 @@ export default function SessionClient() {
       body: looksLikeStem ? rest : raw,
     };
   }, [q]);
+
+  /* ================= v3-2 Step1：錯題池（只記錄＋log，不改 UI） ================= */
+  const wrongIds = useMemo<string[]>(() => {
+    if (!session) return [];
+    const arr = (session as any).wrongIds;
+    return Array.isArray(arr) ? arr : [];
+  }, [session]);
+
+  function getWrongQuestions(s: PracticeSession | null): Question[] {
+    if (!s) return [];
+    const ids = Array.isArray((s as any).wrongIds) ? ((s as any).wrongIds as string[]) : [];
+    return ids.map((id) => getQuestionById(id)).filter((x): x is Question => !!x);
+  }
+
+  // ✅ Debug：每次錯題池改變，印出目前錯題（開發用）
+  useEffect(() => {
+    if (!session) return;
+    // 只 log，不改 UI
+    // eslint-disable-next-line no-console
+    console.log("[v3-2] wrongIds =", wrongIds);
+    // eslint-disable-next-line no-console
+    console.log("[v3-2] wrongQuestions =", getWrongQuestions(session).map((qq) => qq.id));
+  }, [wrongIds, session]);
 
   /* ================= 計時（僅在未暫停 & 未完成時） ================= */
   useEffect(() => {
@@ -354,7 +365,7 @@ export default function SessionClient() {
     else setHintText("提示：先找關鍵字，再拆步驟，最後再判斷。");
   }
 
-  /* ================= 作答（v3-1 Step4：答對自動、答錯手動） ================= */
+  /* ================= 作答（答對自動、答錯手動） ================= */
   function choose(choice: string) {
     if (locked) return;
     setPickedChoice(choice);
@@ -389,7 +400,7 @@ export default function SessionClient() {
   function confirmAnswer() {
     if (!session) return;
     if (session.paused) return;
-    if (judging) return; // 已提交就别重复点
+    if (judging) return;
     if (isFinished) return;
 
     if (!q) {
@@ -403,15 +414,29 @@ export default function SessionClient() {
 
     const isCorrect = pickedChoice === q.answer;
 
-    // 先写入对错
+    // ✅ v3-2 Step1：答錯就把題目 id 存進 session.wrongIds
+    let nextWrongIds = wrongIds;
+    if (!isCorrect) {
+      const set = new Set<string>(wrongIds);
+      set.add(q.id);
+      nextWrongIds = Array.from(set);
+    }
+
     const next = isCorrect
       ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
-      : { ...session, wrongCount: (session.wrongCount ?? 0) + 1 };
+      : {
+          ...session,
+          wrongCount: (session.wrongCount ?? 0) + 1,
+          // 存在 session 裡（不改 lib/session 型別）
+          ...( { wrongIds: nextWrongIds } as any ),
+        };
 
-    寫入進度(next);
-    setSession(next);
+    // ✅ 若答對也要保留既有 wrongIds（避免被覆蓋消失）
+    const nextFinal = isCorrect ? ({ ...next, ...( { wrongIds: (session as any).wrongIds ?? wrongIds } as any ) } as any) : next;
 
-    // ✅ 提交后锁定（不允许改答案重做）
+    寫入進度(nextFinal);
+    setSession(nextFinal);
+
     setJudging(true);
 
     if (isCorrect) {
@@ -434,16 +459,12 @@ export default function SessionClient() {
         goNextCommonReset();
       }, 1800);
     } else {
-      // ✅ 答错：不自动跳；开放“下一题”按钮
       setMsg("❌ 錯誤。本題已記錄错题重练，按「下一題」繼續。");
       setCanGoNext(true);
-
-      // ✅ 浮水印变色维持到你想要的时间（你说要跟下一题一样就用 1800）
       wmPulseOnWrong(1800);
     }
   }
 
-  // 離開頁面時清除 timer
   useEffect(() => {
     return () => {
       clearNextTimer();
@@ -507,12 +528,11 @@ export default function SessionClient() {
   /* ================= UI ================= */
   return (
     <main style={wrap}>
-      {/* ✅ 回上一頁固定右上 */}
       <button style={fixedTopRightBtn} onClick={backToPractice}>
         ← 回上一頁
       </button>
 
-      {/* ===== 狀態卡（右側放：計時 + 暫停）===== */}
+      {/* ===== 狀態卡 ===== */}
       <div style={card}>
         <div
           style={{
@@ -557,12 +577,10 @@ export default function SessionClient() {
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 題目區（v3-1：題庫）===== */}
+      {/* ===== 題目區 ===== */}
       <div style={{ ...card, position: "relative" }}>
-        {/* ✅ 浮水印：题目区（三个字置中） */}
         <div style={getWatermarkStyle(wmVisible, wmTone)}>題目區</div>
 
-        {/* 題目標題列：左=stem（不显示“题目”字样），右侧留空 */}
         <div
           style={{
             display: "flex",
@@ -576,18 +594,15 @@ export default function SessionClient() {
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             {promptParts.stem ? <div style={{ opacity: 0.75 }}>{promptParts.stem}</div> : null}
           </div>
-
           <div />
         </div>
 
-        {/* 題目內容 */}
         <div style={{ opacity: 0.95, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
           {promptParts.body || q?.prompt || "（此階段暫無題目）"}
         </div>
 
         <div style={{ height: 10 }} />
 
-        {/* 選項 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {(q?.choices ?? []).map((c) => {
             const active = pickedChoice === c;
@@ -611,7 +626,6 @@ export default function SessionClient() {
 
         <div style={{ height: 10 }} />
 
-        {/* 操作列：確定 / 下一题 / 塗鴉牆 */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <button
             style={{
@@ -625,7 +639,6 @@ export default function SessionClient() {
             確定
           </button>
 
-          {/* ✅ Step4：答错才可按下一题 */}
           <button
             style={{
               ...btn,
@@ -643,7 +656,9 @@ export default function SessionClient() {
           </button>
         </div>
 
-        {msg ? <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div> : null}
+        {msg ? (
+          <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div>
+        ) : null}
 
         {stageCount === 0 ? (
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#fff8e6" }}>
@@ -654,7 +669,7 @@ export default function SessionClient() {
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 提示區（顯示提示 + 次數 + 對/錯 固定同一排）===== */}
+      {/* ===== 提示區 ===== */}
       <div style={card}>
         <div
           style={{
