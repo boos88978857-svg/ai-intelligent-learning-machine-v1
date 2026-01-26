@@ -149,3 +149,25 @@ export function hasAnyWrong(): boolean {
     Object.values(stages).some((list) => list.length > 0)
   );
 }
+
+// ======================
+// SessionClient 需要的 API（名稱要對齊 import）
+// ======================
+
+export function addWrongQuestion(subject: string, stage: string, qid: string) {
+  // 这里直接复用你现有的 addWrong / pushWrong 的逻辑：
+  // 如果你文件里已有 addWrong / addWrongQid 之类函数，就在这里调用它
+  // 但为避免你现在命名不一致，我这里写成“自包含版”
+
+  const book = readWrongBook();
+
+  if (!book[subject]) book[subject] = {};
+  if (!book[subject][stage]) book[subject][stage] = [];
+
+  // 去重
+  if (!book[subject][stage].includes(qid)) {
+    book[subject][stage].push(qid);
+  }
+
+  writeWrongBook(book);
+}
