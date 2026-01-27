@@ -99,17 +99,15 @@ export default function WrongClient() {
                   </div>
 
                   <div style={row}>
-                    {qids.map((qid) => (
-                      <span
-                        key={qid}
-                        style={pill}
-                        onClick={() =>
-                          goPractice(subject, stage, qid)
-                        }
-                      >
-                        重練
-                      </span>
-                    ))}
+                   <span
+  style={pill}
+  onClick={() => {
+    // ✅ 每个 stage 只给一个入口：进入错题重练（按 subject + stage）
+    goPractice(subject, stage);
+  }}
+>
+  重練
+</span>
                   </div>
                 </div>
               );
