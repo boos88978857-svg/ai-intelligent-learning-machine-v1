@@ -891,11 +891,11 @@ if (isFinished) {
           </button>
 
           <span style={pill}>
-            {session.hintUsed ?? 0}/{hintLimit}
-          </span>
+  {session?.hintUsed ?? 0}/{hintLimit}
+</span>
 
-          <span style={pill}>對 {session.correctCount ?? 0}</span>
-          <span style={pill}>錯 {session.wrongCount ?? 0}</span>
+<span style={pill}>對 {session?.correctCount ?? 0}</span>
+<span style={pill}>錯 {session?.wrongCount ?? 0}</span>
         </div>
 
         <div />
