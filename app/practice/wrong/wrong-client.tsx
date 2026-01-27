@@ -4,10 +4,7 @@
 import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
-import {
-  getWrongBookSnapshot,
-  type WrongBookSnapshot,
-} from "../../../lib/wrong-book";
+import { getWrongBookSnapshot, type WrongBookSnapshot } from "../../../lib/wrong-book";
 
 const wrap: React.CSSProperties = {
   maxWidth: 1100,
@@ -59,11 +56,10 @@ export default function WrongClient() {
 
   const subjects = Object.keys(snapshot);
 
-  function goPractice(subject: string, stage: string, qid: string) {
+  // ✅ 每個 stage 只給一個入口：進入錯題重練（由 Session 頁自行挑題）
+  function goPractice(subject: string, stage: string) {
     router.push(
-      `/practice/session?wrong=1&subject=${encodeURIComponent(
-        subject
-      )}&stage=${encodeURIComponent(stage)}&qid=${encodeURIComponent(qid)}`
+      `/practice/session?wrong=1&subject=${encodeURIComponent(subject)}&stage=${encodeURIComponent(stage)}`
     );
   }
 
@@ -72,9 +68,7 @@ export default function WrongClient() {
       <div style={title}>📕 錯題本</div>
 
       {subjects.length === 0 && (
-        <div style={{ opacity: 0.7 }}>
-          目前還沒有錯題，繼續練習吧 💪
-        </div>
+        <div style={{ opacity: 0.7 }}>目前還沒有錯題，繼續練習吧 💪</div>
       )}
 
       {subjects.map((subject) => {
@@ -86,28 +80,19 @@ export default function WrongClient() {
 
             {Object.keys(stages).map((stage) => {
               const qids = stages[stage];
-
               if (!qids || qids.length === 0) return null;
 
               return (
                 <div key={stage} style={{ ...card, marginBottom: 10 }}>
                   <div style={{ ...row, marginBottom: 8 }}>
                     <strong>{stage}</strong>
-                    <span style={{ opacity: 0.6 }}>
-                      （{qids.length} 題）
-                    </span>
+                    <span style={{ opacity: 0.6 }}>（{qids.length} 題）</span>
                   </div>
 
                   <div style={row}>
-                   <span
-  style={pill}
-  onClick={() => {
-    // ✅ 每个 stage 只给一个入口：进入错题重练（按 subject + stage）
-    goPractice(subject, stage);
-  }}
->
-  重練
-</span>
+                    <span style={pill} onClick={() => goPractice(subject, stage)}>
+                      重練
+                    </span>
                   </div>
                 </div>
               );
