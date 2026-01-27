@@ -890,70 +890,73 @@ if (isFinished) {
 
       {/* ===== 提示區（顯示提示 + 次數 + 對/錯 固定同一排）===== */}
 <div style={card}>
-  {!isWrongMode ? (
-    <>
-      <div
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      flexWrap: "wrap",
+    }}
+  >
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <button
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          flexWrap: "wrap",
+          ...btn,
+          opacity: isWrongMode
+            ? wrongHintUsed < WRONG_HINT_LIMIT
+              ? 1
+              : 0.5
+            : !session?.paused && canHint
+            ? 1
+            : 0.5,
         }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <button
-            style={{ ...btn, opacity: !session?.paused && canHint ? 1 : 0.5 }}
-            onClick={onHint}
-            disabled={session?.paused || !canHint}
-          >
-            顯示提示
-          </button>
-
-          <span style={pill}>
-  {session?.hintUsed ?? 0}/{hintLimit}
-</span>
-
-<span style={pill}>對 {session?.correctCount ?? 0}</span>
-<span style={pill}>錯 {session?.wrongCount ?? 0}</span>
-        </div>
-
-        <div />
-      </div>
-
-      <div
-        style={{
-          marginTop: 10,
-          padding: 12,
-          borderRadius: 12,
-          border: "1px dashed #e0e0e0",
-          opacity: hintText ? 1 : 0.7,
+        onClick={() => {
+          if (isWrongMode) {
+            if (wrongHintUsed >= WRONG_HINT_LIMIT) return;
+            setWrongHintUsed((n) => n + 1);
+            setHintText(q?.hint || "提示：先找關鍵字，再判斷句型。");
+          } else {
+            onHint();
+          }
         }}
+        disabled={
+          isWrongMode
+            ? wrongHintUsed >= WRONG_HINT_LIMIT
+            : session?.paused || !canHint
+        }
       >
-        {hintText ? hintText : "提示可在作答前使用，協助理解題目。"}
-      </div>
-    </>
-  ) : (
-    <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={pill}>錯題重練模式（不提供提示）</span>
-        <span style={pill}>對 {wrongCorrect ?? 0}</span>
-        <span style={pill}>錯 {wrongWrong ?? 0}</span>
-      </div>
+        顯示提示
+      </button>
 
-      <div
-        style={{
-          marginTop: 10,
-          padding: 12,
-          borderRadius: 12,
-          border: "1px dashed #e0e0e0",
-          opacity: 0.8,
-        }}
-      >
-        答對會自動從錯題本移除；答錯會保留，之後可再重練。
-      </div>
-    </>
-  )}
+      <span style={pill}>
+        {isWrongMode
+          ? `${wrongHintUsed}/${WRONG_HINT_LIMIT}`
+          : `${session?.hintUsed ?? 0}/${hintLimit}`}
+      </span>
+
+      <span style={pill}>
+        對 {isWrongMode ? wrongCorrect ?? 0 : session?.correctCount ?? 0}
+      </span>
+      <span style={pill}>
+        錯 {isWrongMode ? wrongWrong ?? 0 : session?.wrongCount ?? 0}
+      </span>
+    </div>
+
+    <div />
+  </div>
+
+  <div
+    style={{
+      marginTop: 10,
+      padding: 12,
+      borderRadius: 12,
+      border: "1px dashed #e0e0e0",
+      opacity: hintText ? 1 : 0.7,
+    }}
+  >
+    {hintText ? hintText : "提示可在作答前使用，協助理解題目。"}
+  </div>
 </div>
 
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
