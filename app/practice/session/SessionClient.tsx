@@ -18,7 +18,7 @@ import {
 import { getQuestionByIndex, getStageCount, type Question } from "./question-bank";
 
 // ✅ v3-3：錯題本（依 科目 -> 階段 分桶）
-import { addWrongQuestion } from "../../../lib/wrong-book";
+import { addWrongQuestion, removeWrongQuestion } from "../../../lib/wrong-book";
 
 /** ================== ✅ 新增：錯題模式 Props（不影響原架構） ================== */
 type SessionClientMode = "normal" | "wrong";
@@ -123,7 +123,7 @@ const HINT_LIMIT_WRONG = 3;
 export default function SessionClient(props: SessionClientProps) {
   const router = useRouter();
   const sp = useSearchParams();
-
+const isWrongMode = sp.get("wrong") === "1";
   const mode: SessionClientMode = (props as any)?.mode === "wrong" ? "wrong" : "normal";
 
   /** ================= 正常模式（沿用原本 session） ================= */
@@ -520,28 +520,31 @@ export default function SessionClient(props: SessionClientProps) {
     setJudging(true);
 
     if (mode === "wrong") {
-      // ===== 錯題模式：只更新本地統計，不動原本進度 =====
-      if (isCorrect) {
-        setWrongCorrect((c) => c + 1);
-        setMsg("✅ 正確。準備進入下一題…");
-        setCanGoNext(false);
+  // ====== 錯題模式：只更新本地統計，不動原本進度 ======
+  if (isCorrect) {
+    // ✅ 錯題重練：答對就自動從錯題本移除
+    removeWrongQuestion(subject, stage, q.id);
 
-        clearNextTimer();
-        nextTimerRef.current = window.setTimeout(() => {
-          setWrongIndex((idx) => {
-            const next = idx + 1;
-            return next >= (wrongQuestions.length || 0) ? idx : next;
-          });
-          goNextCommonReset();
-        }, 1800);
-      } else {
-        setWrongWrong((w) => w + 1);
-        setMsg("❌ 錯誤。本題仍保留在錯題清單中；按「下一題」繼續。");
-        setCanGoNext(true);
-        wmPulseOnWrong(1800);
-      }
-      return;
-    }
+    setWrongCorrect((c) => c + 1);
+    setMsg("✅ 正確。準備進入下一題…");
+    setCanGoNext(false);
+
+    clearNextTimer();
+    nextTimerRef.current = window.setTimeout(() => {
+      setWrongIndex((idx) => {
+        const next = idx + 1;
+        return next >= wrongQuestions.length ? idx : next;
+      });
+      goNextCommonReset();
+    }, 1800);
+  } else {
+    setWrongWrong((w) => w + 1);
+    setMsg("❌ 錯誤。本題仍保留在錯題清單中；按「下一題」繼續。");
+    setCanGoNext(true);
+    wmPulseOnWrong(1800);
+  }
+  return;
+}
 
     // ===== normal 模式：寫入進度 + 寫入錯題本 =====
     if (!session) return;
