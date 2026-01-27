@@ -753,17 +753,17 @@ if (isFinished) {
   </span>
 
   {!isWrongMode ? (
-    <button
-      onClick={togglePause}
-      style={{
-        ...pill,
-        cursor: "pointer",
-        background: "#fff",
-      }}
-    >
-      {session.paused ? "▶ 繼續" : "⏸ 暫停"}
-    </button>
-  ) : null}
+  <button
+    onClick={togglePause}
+    style={{
+      ...pill,
+      cursor: "pointer",
+      background: "#fff",
+    }}
+  >
+    {session?.paused ? "▶ 繼續" : "⏸ 暫停"}
+  </button>
+) : null}
 </div>
         </div>
 
