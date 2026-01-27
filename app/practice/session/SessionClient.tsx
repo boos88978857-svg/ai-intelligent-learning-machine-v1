@@ -883,9 +883,9 @@ if (isFinished) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button
-            style={{ ...btn, opacity: !session.paused && canHint ? 1 : 0.5 }}
+            style={{ ...btn, opacity: !session?.paused && canHint ? 1 : 0.5 }}
             onClick={onHint}
-            disabled={session.paused || !canHint}
+            disabled={session?.paused || !canHint}
           >
             顯示提示
           </button>
