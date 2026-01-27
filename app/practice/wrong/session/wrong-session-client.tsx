@@ -1,41 +1,32 @@
-// app/practice/wrong/session/wrong-session-client.tsx
 "use client";
 
-import { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+// 🔹 复用现有题目型别
+import type { Question } from "../../session/question-bank";
+
+// 🔹 读取错题本
+import { getWrongBookSnapshot } from "../../../../lib/wrong-book";
+
+// 🔹 用现成的题库 API 根据 qid 抓题
+import { getQuestionByIndex } from "../../session/question-bank";
+
+// 🔹 直接复用你已经稳定的 SessionClient
+import SessionClient from "../../session/SessionClient";
+
 /**
- * 錯題重練入口 Client
- *
- * 職責只有一個：
- * - 從 URL 讀 subject / stage
- * - 轉跳到 /practice/session（錯題模式）
- *
- * ❌ 不 render SessionClient
- * ❌ 不自己組 questions
+ * 錯題重練模式說明：
+ * - 這個 client 只負責「準備錯題資料」
+ * - 實際作答 UI / 流程，全部交給 SessionClient
+ * - 不影響原本回合、不寫入原進度
  */
 export default function WrongSessionClient() {
   const router = useRouter();
-  const search = useSearchParams();
+  const sp = useSearchParams();
 
-  const subject = search.get("subject");
-  const stage = search.get("stage");
+  // 從 URL 取得 subject / stage
+  const subject = sp.get("subject") ?? "";
+  const stage = sp.get("stage") ?? "";
 
-  useEffect(() => {
-    if (!subject || !stage) {
-      // 參數不完整 → 回錯題本
-      router.replace("/practice/wrong");
-      return;
-    }
-
-    // ✅ 關鍵：用 URL 告訴 SessionClient 這是「錯題模式」
-    router.replace(
-      `/practice/session?wrong=1&subject=${encodeURIComponent(
-        subject
-      )}&stage=${encodeURIComponent(stage)}`
-    );
-  }, [router, subject, stage]);
-
-  // 這個頁面不顯示任何 UI，只負責導向
-  return null;
-}
+  const [questions, setQuestions] = useState<Question[]>([]);
