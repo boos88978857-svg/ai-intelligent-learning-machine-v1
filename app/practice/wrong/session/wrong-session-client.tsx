@@ -56,3 +56,24 @@ export default function WrongSessionClient() {
 
     setQuestions(list);
   }, [subject, stage]);
+
+  // ===== 畫面渲染（真正的頁面輸出）=====
+  if (questions.length === 0) {
+    return (
+      <main style={{ padding: 20 }}>
+        <h2>📕 錯題重練</h2>
+        <p>這個階段目前沒有錯題。</p>
+        <button onClick={() => router.push("/practice/wrong")}>
+          回錯題本
+        </button>
+      </main>
+    );
+  }
+
+  return (
+    <SessionClient
+      subject={subject}
+      stage={stage}
+      questions={questions}
+    />
+  );
