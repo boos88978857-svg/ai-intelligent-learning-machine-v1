@@ -20,10 +20,8 @@ import { getQuestionByIndex, getStageCount, type Question } from "./question-ban
 // ✅ v3-3：錯題本（依 科目 -> 階段 分桶）
 import { addWrongQuestion, removeWrongQuestion } from "../../../lib/wrong-book";
 
-/** ================== ✅ 新增：錯題模式 Props（不影響原架構） ================== */
-type SessionClientMode = "normal" | "wrong";
-
-type SessionClientProps =
+/* ================= Props：同一個 SessionClient 支援 normal / wrong ================= */
+export type SessionClientProps =
   | {
       mode?: "normal";
     }
@@ -34,7 +32,7 @@ type SessionClientProps =
       questions: Question[];
     };
 
-/* ================= 基本樣式（沿用 v2-9 基底，不亂動） ================= */
+/* ================= 基本樣式（沿用你原本基底，不亂動） ================= */
 const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "8px 0" };
 
 const card: React.CSSProperties = {
@@ -88,7 +86,7 @@ const fixedTopRightBtn: React.CSSProperties = {
   ...btnGhost,
 };
 
-/* ✅ 题目区浮水印（v3-1 Step3：动态） */
+/* ✅ 题目区浮水印（动态） */
 const watermarkBase: React.CSSProperties = {
   position: "absolute",
   left: "50%",
@@ -116,43 +114,39 @@ function getWatermarkStyle(wmVisible: boolean, wmTone: "normal" | "wrong"): Reac
 }
 
 /* ================= 常數 ================= */
-const TOTAL_QUESTIONS_NORMAL = 20;
-const HINT_LIMIT_NORMAL = 5;
-const HINT_LIMIT_WRONG = 3;
+const TOTAL_QUESTIONS = 20;
+
+/* ================= 小工具：確保 index 不會超出 ================= */
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
 
 export default function SessionClient(props: SessionClientProps) {
   const router = useRouter();
   const sp = useSearchParams();
-const isWrongMode = sp.get("wrong") === "1";
-  const mode: SessionClientMode = (props as any)?.mode === "wrong" ? "wrong" : "normal";
 
-  /** ================= 正常模式（沿用原本 session） ================= */
+  const mode = (props as any)?.mode === "wrong" ? "wrong" : "normal";
+  const isWrongMode = mode === "wrong";
+
+  // normal 模式才会用到 session（写入/读取进度）
   const [session, setSession] = useState<PracticeSession | null>(null);
 
-  /** ================= ✅ 錯題模式（完全不讀/不寫原本進度） ================= */
-  const wrongSubject = mode === "wrong" ? (props as any).subject : "";
-  const wrongStage = mode === "wrong" ? (props as any).stage : "";
-  const wrongQuestions: Question[] = mode === "wrong" ? (props as any).questions : [];
-
+  // wrong 模式：本地错题回合状态（不写入进度）
   const [wrongIndex, setWrongIndex] = useState(0);
   const [wrongCorrect, setWrongCorrect] = useState(0);
   const [wrongWrong, setWrongWrong] = useState(0);
-  const [wrongElapsed, setWrongElapsed] = useState(0);
-  const [wrongPaused, setWrongPaused] = useState(false);
-  const [wrongHintUsed, setWrongHintUsed] = useState(0);
+  const [wrongElapsedSec, setWrongElapsedSec] = useState(0);
 
   // UI
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
 
-  // v3-1：题目与选项状态
+  // 题目与选项状态
   const [pickedChoice, setPickedChoice] = useState<string | null>(null);
 
-  // ✅ Step4：答错才开放“下一题”按钮；且答错后不允许改答案重做
+  // ✅ 答错才开放“下一题”；答错后不允许改答案重做
   const [canGoNext, setCanGoNext] = useState(false);
-
-  // judging：提交后锁定题目区
   const [judging, setJudging] = useState(false);
 
   // 自动下一题 timer
@@ -164,15 +158,13 @@ const isWrongMode = sp.get("wrong") === "1";
   const wmFadeTimerRef = useRef<number | null>(null);
   const wmToneTimerRef = useRef<number | null>(null);
 
-  // 計時
+  // 计时
   const timerRef = useRef<number | null>(null);
 
-  const totalQuestions = useMemo(() => {
-    return mode === "wrong" ? (wrongQuestions.length || 0) : TOTAL_QUESTIONS_NORMAL;
-  }, [mode, wrongQuestions.length]);
-
   function backToPractice() {
-    router.replace(mode === "wrong" ? "/practice/wrong" : "/practice");
+    // wrong 模式完成页按钮会回错题本
+    if (isWrongMode) router.replace("/practice/wrong");
+    else router.replace("/practice");
   }
 
   function clearNextTimer() {
@@ -182,7 +174,6 @@ const isWrongMode = sp.get("wrong") === "1";
     }
   }
 
-  // ✅ 浮水印 helper
   function clearWmTimers() {
     if (wmFadeTimerRef.current) window.clearTimeout(wmFadeTimerRef.current);
     if (wmToneTimerRef.current) window.clearTimeout(wmToneTimerRef.current);
@@ -219,44 +210,10 @@ const isWrongMode = sp.get("wrong") === "1";
     setWmTone("normal");
   }
 
-  /** ================= ✅ 統一的“顯示用 session”（UI 全吃這個） ================= */
-  const viewSession: PracticeSession | null = useMemo(() => {
-    if (mode === "wrong") {
-      // 用一個“臨時 session 影子”讓原 UI 直接復用
-      return {
-        id: "__wrong__",
-        subject: wrongSubject,
-        paused: wrongPaused,
-        currentIndex: wrongIndex,
-        correctCount: wrongCorrect,
-        wrongCount: wrongWrong,
-        elapsedSec: wrongElapsed,
-        hintUsed: wrongHintUsed,
-        hintLimit: HINT_LIMIT_WRONG,
-      } as any;
-    }
-    return session;
-  }, [mode, session, wrongSubject, wrongStage, wrongPaused, wrongIndex, wrongCorrect, wrongWrong, wrongElapsed, wrongHintUsed]);
-
-  /** ================= 题目切换时：浮水印 fade ================= */
+  /* ================= 讀取進度（只有 normal 才做） ================= */
   useEffect(() => {
-    if (!viewSession) return;
-    wmFadeOnQuestionChange();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewSession?.subject, (viewSession as any)?.stage, viewSession?.currentIndex]);
-
-  /** ================= 离开页：清浮水印 timers ================= */
-  useEffect(() => {
-    return () => {
-      clearWmTimers();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* ================= ✅ 讀取進度（只在 normal） ================= */
-  useEffect(() => {
-    if (mode === "wrong") {
-      // 進錯題模式：重置 UI（不讀 session）
+    if (isWrongMode) {
+      // wrong 模式：初始化 UI
       setMsg(null);
       setHintText(null);
       setPickedChoice(null);
@@ -265,12 +222,11 @@ const isWrongMode = sp.get("wrong") === "1";
       clearNextTimer();
       wmResetNow();
 
+      // 初始化回合
       setWrongIndex(0);
       setWrongCorrect(0);
       setWrongWrong(0);
-      setWrongElapsed(0);
-      setWrongPaused(false);
-      setWrongHintUsed(0);
+      setWrongElapsedSec(0);
       return;
     }
 
@@ -300,58 +256,71 @@ const isWrongMode = sp.get("wrong") === "1";
     setCanGoNext(false);
     clearNextTimer();
     wmResetNow();
-  }, [mode, router, sp]);
+  }, [router, sp, isWrongMode]);
 
   /* ================= 計算狀態 ================= */
   const answeredCount = useMemo(() => {
-    if (!viewSession) return 0;
-    return (viewSession.correctCount ?? 0) + (viewSession.wrongCount ?? 0);
-  }, [viewSession]);
+    if (isWrongMode) return wrongCorrect + wrongWrong;
+    if (!session) return 0;
+    return (session.correctCount ?? 0) + (session.wrongCount ?? 0);
+  }, [isWrongMode, wrongCorrect, wrongWrong, session]);
 
-  const isFinished = useMemo(() => answeredCount >= (totalQuestions || 0), [answeredCount, totalQuestions]);
+  const totalCount = useMemo(() => {
+    if (isWrongMode) return (props as any).questions?.length ?? 0;
+    return TOTAL_QUESTIONS;
+  }, [isWrongMode, props]);
+
+  const isFinished = useMemo(() => {
+    if (isWrongMode) return totalCount > 0 && answeredCount >= totalCount;
+    return answeredCount >= TOTAL_QUESTIONS;
+  }, [isWrongMode, answeredCount, totalCount]);
 
   const hintLimit = useMemo(() => {
-    if (!viewSession) return HINT_LIMIT_NORMAL;
-    if (mode === "wrong") return HINT_LIMIT_WRONG;
-    return (viewSession.hintLimit ?? HINT_LIMIT_NORMAL) as number;
-  }, [viewSession, mode]);
+    // wrong 模式也固定 5 次
+    if (isWrongMode) return 5;
+    return (session?.hintLimit ?? 5) as number;
+  }, [isWrongMode, session]);
 
   const canHint = useMemo(() => {
-    if (!viewSession) return false;
-    const used = viewSession.hintUsed ?? 0;
+    if (isWrongMode) return true; // wrong 模式提示次数我们也控在 5（下面会用本地计数）
+    if (!session) return false;
+    const used = session.hintUsed ?? 0;
     return used < hintLimit;
-  }, [viewSession, hintLimit]);
+  }, [isWrongMode, session, hintLimit]);
 
-  // 锁定题目区选择：暂停/判定中/完成/已提交后（judging）
   const locked = useMemo(() => {
-    return !viewSession || viewSession.paused || judging || isFinished;
-  }, [viewSession, judging, isFinished]);
+    if (isWrongMode) return judging || isFinished;
+    return !session || session.paused || judging || isFinished;
+  }, [isWrongMode, session, judging, isFinished]);
 
-  /* ================= 題目取得（normal:題庫 / wrong: props.questions） ================= */
-  const stage = useMemo(() => {
-    if (mode === "wrong") return wrongStage;
-    return ((session as any)?.stage ?? "") as string;
-  }, [mode, session, wrongStage]);
-
+  /* ================= 題目取得：normal 用题库 index；wrong 用传入 questions ================= */
   const subject = useMemo(() => {
-    if (mode === "wrong") return wrongSubject;
+    if (isWrongMode) return (props as any).subject ?? "";
     return (session?.subject ?? "") as string;
-  }, [mode, session, wrongSubject]);
+  }, [isWrongMode, props, session]);
+
+  const stage = useMemo(() => {
+    if (isWrongMode) return (props as any).stage ?? "";
+    return ((session as any)?.stage ?? "") as string;
+  }, [isWrongMode, props, session]);
 
   const q: Question | null = useMemo(() => {
-    if (!viewSession) return null;
-    const idx = viewSession.currentIndex ?? 0;
-    if (mode === "wrong") return wrongQuestions[idx] ?? null;
-    return getQuestionByIndex(subject, stage, idx);
-  }, [mode, viewSession, subject, stage, wrongQuestions]);
+    if (isWrongMode) {
+      const arr: Question[] = (props as any).questions ?? [];
+      const idx = clamp(wrongIndex, 0, Math.max(0, arr.length - 1));
+      return arr[idx] ?? null;
+    }
+    if (!session) return null;
+    return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
+  }, [isWrongMode, props, wrongIndex, session, subject, stage]);
 
   const stageCount = useMemo(() => {
-    if (!viewSession) return 0;
-    if (mode === "wrong") return wrongQuestions.length;
+    if (isWrongMode) return (props as any).questions?.length ?? 0;
+    if (!session) return 0;
     return getStageCount(subject, stage);
-  }, [mode, viewSession, subject, stage, wrongQuestions.length]);
+  }, [isWrongMode, props, session, subject, stage]);
 
-  // 把 prompt 第一行搬到题干旁（规则：Choose/選擇 开头）
+  // prompt 处理：Choose/選擇 开头拆行
   const promptParts = useMemo(() => {
     const raw = q?.prompt ?? "";
     const lines = raw.split("\n");
@@ -371,30 +340,43 @@ const isWrongMode = sp.get("wrong") === "1";
     };
   }, [q]);
 
-  /* ================= 計時（normal 寫入進度 / wrong 不寫） ================= */
+  // 题目切换：浮水印 fade
   useEffect(() => {
-    if (!viewSession) return;
+    if (!q) return;
+    wmFadeOnQuestionChange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q?.id]);
 
+  // 离开页：清浮水印 timers
+  useEffect(() => {
+    return () => {
+      clearWmTimers();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ================= 計時：normal 用 session；wrong 用本地 elapsed ================= */
+  useEffect(() => {
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    if (viewSession.paused) return;
     if (isFinished) return;
 
+    // normal：暂停时不计时；wrong：一直计时
+    if (!isWrongMode && session?.paused) return;
+
     timerRef.current = window.setInterval(() => {
-      if (mode === "wrong") {
-        // ✅ 錯題模式：只更新本地時間，不寫入進度
-        setWrongElapsed((s) => s + 1);
+      if (isWrongMode) {
+        setWrongElapsedSec((s) => s + 1);
         return;
       }
 
-      // ✅ normal 模式：照舊寫入進度
       setSession((prev) => {
         if (!prev) return prev;
 
-        const done = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0) >= TOTAL_QUESTIONS_NORMAL;
+        const done = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0) >= TOTAL_QUESTIONS;
         if (done) return prev;
 
         const next = { ...prev, elapsedSec: (prev.elapsedSec ?? 0) + 1 };
@@ -409,18 +391,11 @@ const isWrongMode = sp.get("wrong") === "1";
         timerRef.current = null;
       }
     };
-  }, [mode, viewSession?.id, viewSession?.paused, isFinished]);
+  }, [isWrongMode, session?.id, session?.paused, isFinished]);
 
-  /* ================= 操作：暫停 ================= */
+  /* ================= 操作：暫停（wrong 不提供） ================= */
   function togglePause() {
-    if (!viewSession) return;
-
-    if (mode === "wrong") {
-      setWrongPaused((p) => !p);
-      setMsg(null);
-      return;
-    }
-
+    if (isWrongMode) return;
     if (!session) return;
     const next = { ...session, paused: !session.paused };
     寫入進度(next);
@@ -428,31 +403,32 @@ const isWrongMode = sp.get("wrong") === "1";
     setMsg(null);
   }
 
-  /* ================= 操作：提示（normal=5 / wrong=3） ================= */
+  /* ================= 操作：提示（normal 写 session；wrong 用本地计数） ================= */
   function onHint() {
-    if (!viewSession) return;
-    if (viewSession.paused) return;
+    if (isWrongMode) {
+      // 用 msg/hintText 的体验就好：我们在 wrong 模式不做持久化
+      setHintText(q?.hint ?? "提示：先找關鍵字，再拆步驟，最後再判斷。");
+      return;
+    }
 
-    const used = viewSession.hintUsed ?? 0;
+    if (!session) return;
+    if (session.paused) return;
+
+    const used = session.hintUsed ?? 0;
     if (used >= hintLimit) {
       setHintText("提示次數已用完");
       return;
     }
 
-    if (mode === "wrong") {
-      setWrongHintUsed((u) => u + 1);
-    } else {
-      if (!session) return;
-      const next = { ...session, hintUsed: used + 1, hintLimit };
-      寫入進度(next);
-      setSession(next);
-    }
+    const next = { ...session, hintUsed: used + 1, hintLimit };
+    寫入進度(next);
+    setSession(next);
 
     if (q?.hint) setHintText(q.hint);
     else setHintText("提示：先找關鍵字，再拆步驟，最後再判斷。");
   }
 
-  /* ================= 作答（答對自動、答錯手動） ================= */
+  /* ================= 作答流程（共用 UI） ================= */
   function choose(choice: string) {
     if (locked) return;
     setPickedChoice(choice);
@@ -469,27 +445,26 @@ const isWrongMode = sp.get("wrong") === "1";
   }
 
   function goNextManual() {
-    if (!viewSession) return;
-
-    // ✅ 手動下一題前，把紅色浮水印立刻復原（避免卡住）
-    wmResetNow();
-
-    if (mode === "wrong") {
+    if (isWrongMode) {
+      // wrong：手动下一题（仅当答错开放）
+      wmResetNow();
       setWrongIndex((idx) => {
+        const arr: Question[] = (props as any).questions ?? [];
         const next = idx + 1;
-        return next >= (wrongQuestions.length || 0) ? idx : next;
+        return clamp(next, 0, Math.max(0, arr.length - 1));
       });
       goNextCommonReset();
       return;
     }
 
-    // normal
     if (!session) return;
+
+    wmResetNow();
     setSession((prev) => {
       if (!prev) return prev;
 
       const newAnswered = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0);
-      if (newAnswered >= TOTAL_QUESTIONS_NORMAL) return prev;
+      if (newAnswered >= TOTAL_QUESTIONS) return prev;
 
       const moved = { ...prev, currentIndex: (prev.currentIndex ?? 0) + 1 };
       寫入進度(moved);
@@ -500,15 +475,13 @@ const isWrongMode = sp.get("wrong") === "1";
   }
 
   function confirmAnswer() {
-    if (!viewSession) return;
-    if (viewSession.paused) return;
-    if (judging) return;
-    if (isFinished) return;
-
+    // wrong 模式：不依赖 session.paused
     if (!q) {
       setMsg("本階段暫時沒有題目。");
       return;
     }
+    if (judging) return;
+    if (isFinished) return;
     if (!pickedChoice) {
       setMsg("請先選擇答案，再按「確定」。");
       return;
@@ -519,35 +492,50 @@ const isWrongMode = sp.get("wrong") === "1";
     // ✅ 提交后锁定（不允许改答案重做）
     setJudging(true);
 
-    if (mode === "wrong") {
-  // ====== 錯題模式：只更新本地統計，不動原本進度 ======
-  if (isCorrect) {
-    // ✅ 錯題重練：答對就自動從錯題本移除
-    removeWrongQuestion(subject, stage, q.id);
+    // =========================
+    // ✅ wrong 模式：错题重练专用
+    // - 答对：自动移除错题 + 自动跳下一题（连续做完）
+    // - 答错：保留在错题本 + 开放「下一题」手动跳
+    // =========================
+    if (isWrongMode) {
+      if (isCorrect) {
+        // ✅ 答对：从错题本移除
+        removeWrongQuestion(subject, stage, q.id);
 
-    setWrongCorrect((c) => c + 1);
-    setMsg("✅ 正確。準備進入下一題…");
-    setCanGoNext(false);
+        // ✅ 计数：只 +1（你现在出现 “答对两题” 就是这里以前被加了两次）
+        setWrongCorrect((c) => c + 1);
 
-    clearNextTimer();
-    nextTimerRef.current = window.setTimeout(() => {
-      setWrongIndex((idx) => {
-        const next = idx + 1;
-        return next >= wrongQuestions.length ? idx : next;
-      });
-      goNextCommonReset();
-    }, 1800);
-  } else {
-    setWrongWrong((w) => w + 1);
-    setMsg("❌ 錯誤。本題仍保留在錯題清單中；按「下一題」繼續。");
-    setCanGoNext(true);
-    wmPulseOnWrong(1800);
-  }
-  return;
-}
+        setMsg("✅ 正確。準備進入下一題…");
+        setCanGoNext(false);
 
-    // ===== normal 模式：寫入進度 + 寫入錯題本 =====
+        clearNextTimer();
+        nextTimerRef.current = window.setTimeout(() => {
+          setWrongIndex((idx) => {
+            const arr: Question[] = (props as any).questions ?? [];
+            const next = idx + 1;
+
+            // ✅ 如果已经到尾，就留在尾端，交给 isFinished 去显示完成页
+            if (next >= arr.length) return idx;
+            return next;
+          });
+
+          goNextCommonReset();
+        }, 800);
+      } else {
+        // ❌ 答错：保留（不移除）
+        setWrongWrong((w) => w + 1);
+        setMsg("❌ 錯誤。本題仍保留在錯題清單；按「下一題」繼續。");
+        setCanGoNext(true);
+        wmPulseOnWrong(1200);
+      }
+      return;
+    }
+
+    // =========================
+    // ✅ normal 模式：写入进度 + 写入错题本
+    // =========================
     if (!session) return;
+    if (session.paused) return;
 
     const next = isCorrect
       ? { ...session, correctCount: (session.correctCount ?? 0) + 1 }
@@ -566,7 +554,7 @@ const isWrongMode = sp.get("wrong") === "1";
           if (!prev) return prev;
 
           const newAnswered = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0);
-          if (newAnswered >= TOTAL_QUESTIONS_NORMAL) return prev;
+          if (newAnswered >= TOTAL_QUESTIONS) return prev;
 
           const moved = { ...prev, currentIndex: (prev.currentIndex ?? 0) + 1 };
           寫入進度(moved);
@@ -581,8 +569,6 @@ const isWrongMode = sp.get("wrong") === "1";
 
       setMsg("❌ 錯誤。本題已記錄至錯題本；按「下一題」繼續。");
       setCanGoNext(true);
-
-      // ✅ 红色浮水印提示（与自动时间一致）
       wmPulseOnWrong(1800);
     }
   }
@@ -599,41 +585,75 @@ const isWrongMode = sp.get("wrong") === "1";
   }, []);
 
   /* ================= 完成畫面 ================= */
-  if (viewSession && isFinished) {
+  if (isFinished) {
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
+    // wrong 模式完成页
+    if (isWrongMode) {
+      return (
+        <main style={wrap}>
+          <div style={card}>
+            <div style={{ fontWeight: 900, fontSize: 34, display: "flex", gap: 10, alignItems: "center" }}>
+              🎉 錯題重練完成
+            </div>
+
+            <div style={{ height: 10 }} />
+
+            <div style={{ ...row, alignItems: "center" }}>
+              <span style={pill}>{subject}</span>
+              <span style={pill}>{stage}</span>
+              <span style={pill}>題數：{answeredCount}/{totalCount}</span>
+              <span style={pill}>用時：{格式化時間(wrongElapsedSec)}</span>
+            </div>
+
+            <div style={{ height: 8 }} />
+
+            <div style={row}>
+              <span style={pill}>答對：{wrongCorrect}</span>
+              <span style={pill}>答錯：{wrongWrong}</span>
+            </div>
+
+            <div style={{ height: 12 }} />
+
+            <button style={btnPrimary} onClick={backToPractice}>
+              回錯題本
+            </button>
+          </div>
+        </main>
+      );
+    }
+
+    // normal 模式完成页（原逻辑）
     return (
       <main style={wrap}>
         <div style={card}>
           <div style={{ fontWeight: 900, fontSize: 34, display: "flex", gap: 10, alignItems: "center" }}>
-            🎉 {mode === "wrong" ? "錯題重練完成" : "本回合完成"}
+            🎉 本回合完成
           </div>
 
           <div style={{ height: 10 }} />
 
           <div style={{ ...row, alignItems: "center" }}>
-            <span style={pill}>{viewSession.subject}</span>
-            <span style={pill}>{stage || "-"}</span>
-            <span style={pill}>
-              題數：{totalQuestions}/{totalQuestions}
-            </span>
-            <span style={pill}>用時：{格式化時間(viewSession.elapsedSec ?? 0)}</span>
+            <span style={pill}>{session?.subject}</span>
+            <span style={pill}>{(session as any)?.stage ?? "-"}</span>
+            <span style={pill}>題數：{TOTAL_QUESTIONS}/{TOTAL_QUESTIONS}</span>
+            <span style={pill}>用時：{格式化時間(session?.elapsedSec ?? 0)}</span>
           </div>
 
           <div style={{ height: 8 }} />
 
           <div style={row}>
-            <span style={pill}>答對：{viewSession.correctCount ?? 0}</span>
-            <span style={pill}>答錯：{viewSession.wrongCount ?? 0}</span>
+            <span style={pill}>答對：{session?.correctCount ?? 0}</span>
+            <span style={pill}>答錯：{session?.wrongCount ?? 0}</span>
           </div>
 
           <div style={{ height: 12 }} />
 
           <button style={btnPrimary} onClick={backToPractice}>
-            {mode === "wrong" ? "回錯題本" : "回學習區"}
+            回學習區
           </button>
         </div>
       </main>
@@ -641,7 +661,7 @@ const isWrongMode = sp.get("wrong") === "1";
   }
 
   /* ================= 空狀態 ================= */
-  if (!viewSession) {
+  if (!isWrongMode && !session) {
     return (
       <main style={wrap}>
         <div style={card}>
@@ -659,7 +679,7 @@ const isWrongMode = sp.get("wrong") === "1";
         ← 回上一頁
       </button>
 
-      {/* ===== 狀態卡（右側放：計時 + 暫停）===== */}
+      {/* ===== 狀態卡 ===== */}
       <div style={card}>
         <div
           style={{
@@ -671,31 +691,33 @@ const isWrongMode = sp.get("wrong") === "1";
           }}
         >
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={pill}>{viewSession.subject}</span>
+            <span style={pill}>{subject}</span>
             <span style={pill}>{stage || "-"}</span>
 
             <span style={pill}>
-              第 {Math.min((viewSession.currentIndex ?? 0) + 1, totalQuestions)}/{totalQuestions}
+              第 {Math.min((isWrongMode ? wrongIndex : (session!.currentIndex ?? 0)) + 1, totalCount)}/{totalCount}
             </span>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={pill}>⏱ {格式化時間(viewSession.elapsedSec ?? 0)}</span>
+            <span style={pill}>⏱ {格式化時間(isWrongMode ? wrongElapsedSec : (session!.elapsedSec ?? 0))}</span>
 
-            <button
-              onClick={togglePause}
-              style={{
-                ...pill,
-                cursor: "pointer",
-                background: "#fff",
-              }}
-            >
-              {viewSession.paused ? "▶ 繼續" : "⏸ 暫停"}
-            </button>
+            {!isWrongMode ? (
+              <button
+                onClick={togglePause}
+                style={{
+                  ...pill,
+                  cursor: "pointer",
+                  background: "#fff",
+                }}
+              >
+                {session!.paused ? "▶ 繼續" : "⏸ 暫停"}
+              </button>
+            ) : null}
           </div>
         </div>
 
-        {viewSession.paused ? (
+        {!isWrongMode && session!.paused ? (
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#fff8e6" }}>
             已暫停；請按「繼續」後再作答。
           </div>
@@ -704,7 +726,7 @@ const isWrongMode = sp.get("wrong") === "1";
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 題目區（題庫/錯題清單）===== */}
+      {/* ===== 題目區 ===== */}
       <div style={{ ...card, position: "relative" }}>
         <div style={getWatermarkStyle(wmVisible, wmTone)}>題目區</div>
 
@@ -757,11 +779,11 @@ const isWrongMode = sp.get("wrong") === "1";
           <button
             style={{
               ...btnPrimary,
-              opacity: viewSession.paused || judging || isFinished || !pickedChoice ? 0.5 : 1,
-              cursor: viewSession.paused || judging || isFinished || !pickedChoice ? "not-allowed" : "pointer",
+              opacity: (!isWrongMode && (session!.paused || judging || isFinished)) || !pickedChoice ? 0.5 : 1,
+              cursor: (!isWrongMode && (session!.paused || judging || isFinished)) || !pickedChoice ? "not-allowed" : "pointer",
             }}
             onClick={confirmAnswer}
-            disabled={viewSession.paused || judging || isFinished || !pickedChoice}
+            disabled={(!isWrongMode && (session!.paused || judging || isFinished)) || !pickedChoice}
           >
             確定
           </button>
@@ -778,7 +800,7 @@ const isWrongMode = sp.get("wrong") === "1";
             下一題 →
           </button>
 
-          <button style={btn} onClick={() => setWhiteboardOpen(true)} disabled={viewSession.paused}>
+          <button style={btn} onClick={() => setWhiteboardOpen(true)} disabled={!isWrongMode && session!.paused}>
             📝 塗鴉牆
           </button>
         </div>
@@ -787,7 +809,7 @@ const isWrongMode = sp.get("wrong") === "1";
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f5f5f5" }}>{msg}</div>
         ) : null}
 
-        {mode !== "wrong" && stageCount === 0 ? (
+        {stageCount === 0 ? (
           <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#fff8e6" }}>
             ⚠️ 這個階段目前題庫數量為 0，請確認 question-bank.ts 的 subject/stage 名稱是否一致。
           </div>
@@ -796,7 +818,7 @@ const isWrongMode = sp.get("wrong") === "1";
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 提示區（normal=5 / wrong=3）===== */}
+      {/* ===== 提示區 ===== */}
       <div style={card}>
         <div
           style={{
@@ -809,19 +831,23 @@ const isWrongMode = sp.get("wrong") === "1";
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button
-              style={{ ...btn, opacity: !viewSession.paused && canHint ? 1 : 0.5 }}
+              style={{ ...btn, opacity: canHint ? 1 : 0.5 }}
               onClick={onHint}
-              disabled={viewSession.paused || !canHint}
+              disabled={!canHint}
             >
               顯示提示
             </button>
 
-            <span style={pill}>
-              {viewSession.hintUsed ?? 0}/{hintLimit}
-            </span>
+            {!isWrongMode ? (
+              <span style={pill}>
+                {session!.hintUsed ?? 0}/{hintLimit}
+              </span>
+            ) : (
+              <span style={pill}>提示：≤ {hintLimit}</span>
+            )}
 
-            <span style={pill}>對 {viewSession.correctCount ?? 0}</span>
-            <span style={pill}>錯 {viewSession.wrongCount ?? 0}</span>
+            <span style={pill}>對 {isWrongMode ? wrongCorrect : (session!.correctCount ?? 0)}</span>
+            <span style={pill}>錯 {isWrongMode ? wrongWrong : (session!.wrongCount ?? 0)}</span>
           </div>
 
           <div />
@@ -843,4 +869,9 @@ const isWrongMode = sp.get("wrong") === "1";
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
     </main>
   );
+}
+
+// 小工具
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
