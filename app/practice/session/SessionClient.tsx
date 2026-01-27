@@ -116,6 +116,23 @@ function getWatermarkStyle(wmVisible: boolean, wmTone: "normal" | "wrong"): Reac
 /* ================= 常數 ================= */
 const TOTAL_QUESTIONS = 20;
 
+/* ================= v3-4：錯題重練（凍結題單，避免「做一題就沒題」） ================= */
+// ✅ 只要進入 wrong 模式，就把本次要練的題目「凍結」成一份清單
+// ✅ 後續就算 removeWrongQuestion() 把 localStorage 變短，也不影響本回合題數與流程
+type WrongRunPack = {
+  subject: string;
+  stage: string;
+  questions: Question[];
+};
+
+function freezeWrongPack(input: any): WrongRunPack | null {
+  if (!input) return null;
+  const subject = String(input.subject ?? "");
+  const stage = String(input.stage ?? "");
+  const questions = Array.isArray(input.questions) ? (input.questions as Question[]) : [];
+  if (!subject || !stage || questions.length === 0) return null;
+  return { subject, stage, questions };
+}
 /* ================= 小工具：確保 index 不會超出 ================= */
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -128,10 +145,16 @@ export default function SessionClient(props: SessionClientProps) {
   const mode = (props as any)?.mode === "wrong" ? "wrong" : "normal";
   const isWrongMode = mode === "wrong";
 
-  // normal 模式才会用到 session（写入/读取进度）
+  // ✅ 錯題模式：凍結本回合題單（整個回合只用這一份）
+  const wrongPack = useMemo(() => {
+    if (!isWrongMode) return null;
+    return freezeWrongPack(props);
+  }, [isWrongMode, props]);
+
+  // normal 模式才會用到 session（寫入/讀取進度）
   const [session, setSession] = useState<PracticeSession | null>(null);
 
-  // wrong 模式：本地错题回合状态（不写入进度）
+  // wrong 模式：本地錯題回合狀態（完全不碰 session / localStorage）
   const [wrongIndex, setWrongIndex] = useState(0);
   const [wrongCorrect, setWrongCorrect] = useState(0);
   const [wrongWrong, setWrongWrong] = useState(0);
@@ -162,10 +185,12 @@ export default function SessionClient(props: SessionClientProps) {
   const timerRef = useRef<number | null>(null);
 
   function backToPractice() {
-    // wrong 模式完成页按钮会回错题本
-    if (isWrongMode) router.replace("/practice/wrong");
-    else router.replace("/practice");
+  if (isWrongMode) {
+    router.replace("/practice/wrong");
+    return;
   }
+  router.replace("/practice");
+}
 
   function clearNextTimer() {
     if (nextTimerRef.current) {
@@ -259,66 +284,67 @@ export default function SessionClient(props: SessionClientProps) {
   }, [router, sp, isWrongMode]);
 
   /* ================= 計算狀態 ================= */
-  const answeredCount = useMemo(() => {
-    if (isWrongMode) return wrongCorrect + wrongWrong;
-    if (!session) return 0;
-    return (session.correctCount ?? 0) + (session.wrongCount ?? 0);
-  }, [isWrongMode, wrongCorrect, wrongWrong, session]);
+const totalQuestions = useMemo(() => {
+  if (isWrongMode) return wrongPack?.questions.length ?? 0;
+  return TOTAL_QUESTIONS;
+}, [isWrongMode, wrongPack]);
 
-  const totalCount = useMemo(() => {
-    if (isWrongMode) return (props as any).questions?.length ?? 0;
-    return TOTAL_QUESTIONS;
-  }, [isWrongMode, props]);
+const answeredCount = useMemo(() => {
+  if (isWrongMode) return (wrongCorrect ?? 0) + (wrongWrong ?? 0);
+  if (!session) return 0;
+  return (session.correctCount ?? 0) + (session.wrongCount ?? 0);
+}, [isWrongMode, wrongCorrect, wrongWrong, session]);
 
-  const isFinished = useMemo(() => {
-    if (isWrongMode) return totalCount > 0 && answeredCount >= totalCount;
-    return answeredCount >= TOTAL_QUESTIONS;
-  }, [isWrongMode, answeredCount, totalCount]);
+const isFinished = useMemo(() => {
+  if (isWrongMode) return totalQuestions > 0 && answeredCount >= totalQuestions;
+  return answeredCount >= TOTAL_QUESTIONS;
+}, [isWrongMode, answeredCount, totalQuestions]);
 
-  const hintLimit = useMemo(() => {
-    // wrong 模式也固定 5 次
-    if (isWrongMode) return 5;
-    return (session?.hintLimit ?? 5) as number;
-  }, [isWrongMode, session]);
+// ✅ 錯題重練：暫時不提供提示（避免碰到 session.hintUsed / hintLimit）
+const hintLimit = useMemo(() => {
+  if (isWrongMode) return 0;
+  return (session?.hintLimit ?? 5) as number;
+}, [isWrongMode, session]);
 
-  const canHint = useMemo(() => {
-    if (isWrongMode) return true; // wrong 模式提示次数我们也控在 5（下面会用本地计数）
-    if (!session) return false;
-    const used = session.hintUsed ?? 0;
-    return used < hintLimit;
-  }, [isWrongMode, session, hintLimit]);
+const canHint = useMemo(() => {
+  if (isWrongMode) return false;
+  if (!session) return false;
+  const used = session.hintUsed ?? 0;
+  return used < hintLimit;
+}, [isWrongMode, session, hintLimit]);
 
-  const locked = useMemo(() => {
-    if (isWrongMode) return judging || isFinished;
-    return !session || session.paused || judging || isFinished;
-  }, [isWrongMode, session, judging, isFinished]);
+// ✅ 鎖定題目區選擇：wrong 模式不看 session.paused
+const locked = useMemo(() => {
+  if (isWrongMode) return judging || isFinished;
+  return !session || session.paused || judging || isFinished;
+}, [isWrongMode, session, judging, isFinished]);
 
-  /* ================= 題目取得：normal 用题库 index；wrong 用传入 questions ================= */
-  const subject = useMemo(() => {
-    if (isWrongMode) return (props as any).subject ?? "";
-    return (session?.subject ?? "") as string;
-  }, [isWrongMode, props, session]);
+  /* ================= 題目取得（v3-1） ================= */
+const subject = useMemo(() => {
+  if (isWrongMode) return wrongPack?.subject ?? "";
+  return (session?.subject ?? "") as string;
+}, [isWrongMode, wrongPack, session]);
 
-  const stage = useMemo(() => {
-    if (isWrongMode) return (props as any).stage ?? "";
-    return ((session as any)?.stage ?? "") as string;
-  }, [isWrongMode, props, session]);
+const stage = useMemo(() => {
+  if (isWrongMode) return wrongPack?.stage ?? "";
+  return ((session as any)?.stage ?? "") as string;
+}, [isWrongMode, wrongPack, session]);
 
-  const q: Question | null = useMemo(() => {
-    if (isWrongMode) {
-      const arr: Question[] = (props as any).questions ?? [];
-      const idx = clamp(wrongIndex, 0, Math.max(0, arr.length - 1));
-      return arr[idx] ?? null;
-    }
-    if (!session) return null;
-    return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
-  }, [isWrongMode, props, wrongIndex, session, subject, stage]);
+const q: Question | null = useMemo(() => {
+  if (isWrongMode) {
+    const list = wrongPack?.questions ?? [];
+    return list[wrongIndex] ?? null;
+  }
+  if (!session) return null;
+  return getQuestionByIndex(subject, stage, session.currentIndex ?? 0);
+}, [isWrongMode, wrongPack, wrongIndex, session, subject, stage]);
 
-  const stageCount = useMemo(() => {
-    if (isWrongMode) return (props as any).questions?.length ?? 0;
-    if (!session) return 0;
-    return getStageCount(subject, stage);
-  }, [isWrongMode, props, session, subject, stage]);
+// ✅ wrong 模式不檢查題庫 stageCount（因為題目清單已由 wrongPack 冻结）
+const stageCount = useMemo(() => {
+  if (isWrongMode) return wrongPack?.questions.length ?? 0;
+  if (!session) return 0;
+  return getStageCount(subject, stage);
+}, [isWrongMode, wrongPack, session, subject, stage]);
 
   // prompt 处理：Choose/選擇 开头拆行
   const promptParts = useMemo(() => {
@@ -355,34 +381,20 @@ export default function SessionClient(props: SessionClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ================= 計時：normal 用 session；wrong 用本地 elapsed ================= */
-  useEffect(() => {
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+  /* ================= 計時（僅在未暫停 & 未完成時） ================= */
+useEffect(() => {
+  // 清掉舊 timer
+  if (timerRef.current) {
+    window.clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
 
-    if (isFinished) return;
+  if (isFinished) return;
 
-    // normal：暂停时不计时；wrong：一直计时
-    if (!isWrongMode && session?.paused) return;
-
+  // ✅ wrong 模式：只更新 wrongElapsedSec，不寫 localStorage
+  if (isWrongMode) {
     timerRef.current = window.setInterval(() => {
-      if (isWrongMode) {
-        setWrongElapsedSec((s) => s + 1);
-        return;
-      }
-
-      setSession((prev) => {
-        if (!prev) return prev;
-
-        const done = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0) >= TOTAL_QUESTIONS;
-        if (done) return prev;
-
-        const next = { ...prev, elapsedSec: (prev.elapsedSec ?? 0) + 1 };
-        寫入進度(next);
-        return next;
-      });
+      setWrongElapsedSec((s) => s + 1);
     }, 1000);
 
     return () => {
@@ -391,42 +403,66 @@ export default function SessionClient(props: SessionClientProps) {
         timerRef.current = null;
       }
     };
-  }, [isWrongMode, session?.id, session?.paused, isFinished]);
+  }
+
+  // ✅ normal 模式：沿用你原本 session 計時寫入進度
+  if (!session) return;
+  if (session.paused) return;
+
+  timerRef.current = window.setInterval(() => {
+    setSession((prev) => {
+      if (!prev) return prev;
+
+      const done = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0) >= TOTAL_QUESTIONS;
+      if (done) return prev;
+
+      const next = { ...prev, elapsedSec: (prev.elapsedSec ?? 0) + 1 };
+      寫入進度(next);
+      return next;
+    });
+  }, 1000);
+
+  return () => {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+}, [isWrongMode, session?.id, session?.paused, isFinished]);
 
   /* ================= 操作：暫停（wrong 不提供） ================= */
   function togglePause() {
-    if (isWrongMode) return;
-    if (!session) return;
-    const next = { ...session, paused: !session.paused };
-    寫入進度(next);
-    setSession(next);
-    setMsg(null);
-  }
+  // ✅ wrong 模式不提供暫停（避免跟 session 邏輯混到）
+  if (isWrongMode) return;
+
+  if (!session) return;
+  const next = { ...session, paused: !session.paused };
+  寫入進度(next);
+  setSession(next);
+  setMsg(null);
+}
 
   /* ================= 操作：提示（normal 写 session；wrong 用本地计数） ================= */
   function onHint() {
-    if (isWrongMode) {
-      // 用 msg/hintText 的体验就好：我们在 wrong 模式不做持久化
-      setHintText(q?.hint ?? "提示：先找關鍵字，再拆步驟，最後再判斷。");
-      return;
-    }
+  // ✅ wrong 模式暫不提供提示（避免碰 session.hintUsed/hintLimit）
+  if (isWrongMode) return;
 
-    if (!session) return;
-    if (session.paused) return;
+  if (!session) return;
+  if (session.paused) return;
 
-    const used = session.hintUsed ?? 0;
-    if (used >= hintLimit) {
-      setHintText("提示次數已用完");
-      return;
-    }
-
-    const next = { ...session, hintUsed: used + 1, hintLimit };
-    寫入進度(next);
-    setSession(next);
-
-    if (q?.hint) setHintText(q.hint);
-    else setHintText("提示：先找關鍵字，再拆步驟，最後再判斷。");
+  const used = session.hintUsed ?? 0;
+  if (used >= hintLimit) {
+    setHintText("提示次數已用完");
+    return;
   }
+
+  const next = { ...session, hintUsed: used + 1, hintLimit };
+  寫入進度(next);
+  setSession(next);
+
+  if (q?.hint) setHintText(q.hint);
+  else setHintText("提示：先找關鍵字，再拆步驟，最後再判斷。");
+}
 
   /* ================= 作答流程（共用 UI） ================= */
   function choose(choice: string) {
@@ -445,34 +481,39 @@ export default function SessionClient(props: SessionClientProps) {
   }
 
   function goNextManual() {
-    if (isWrongMode) {
-      // wrong：手动下一题（仅当答错开放）
-      wmResetNow();
-      setWrongIndex((idx) => {
-        const arr: Question[] = (props as any).questions ?? [];
-        const next = idx + 1;
-        return clamp(next, 0, Math.max(0, arr.length - 1));
-      });
-      goNextCommonReset();
-      return;
-    }
+  // ✅ 手動下一題前，把紅色浮水印立刻復原（避免卡住）
+  wmResetNow();
 
-    if (!session) return;
+  // ✅ wrong 模式：推進 wrongIndex（不動 session、不寫入進度）
+  if (isWrongMode) {
+    const total = wrongPack?.questions.length ?? 0;
+    if (total <= 0) return;
 
-    wmResetNow();
-    setSession((prev) => {
-      if (!prev) return prev;
-
-      const newAnswered = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0);
-      if (newAnswered >= TOTAL_QUESTIONS) return prev;
-
-      const moved = { ...prev, currentIndex: (prev.currentIndex ?? 0) + 1 };
-      寫入進度(moved);
-      return moved;
+    setWrongIndex((idx) => {
+      const next = idx + 1;
+      return next >= total ? idx : next;
     });
 
     goNextCommonReset();
+    return;
   }
+
+  // ✅ normal 模式：沿用你原本 session 推進
+  if (!session) return;
+
+  setSession((prev) => {
+    if (!prev) return prev;
+
+    const newAnswered = (prev.correctCount ?? 0) + (prev.wrongCount ?? 0);
+    if (newAnswered >= TOTAL_QUESTIONS) return prev;
+
+    const moved = { ...prev, currentIndex: (prev.currentIndex ?? 0) + 1 };
+    寫入進度(moved);
+    return moved;
+  });
+
+  goNextCommonReset();
+}
 
   function confirmAnswer() {
     // wrong 模式：不依赖 session.paused
@@ -511,7 +552,7 @@ export default function SessionClient(props: SessionClientProps) {
         clearNextTimer();
         nextTimerRef.current = window.setTimeout(() => {
           setWrongIndex((idx) => {
-            const arr: Question[] = (props as any).questions ?? [];
+            const arr: Question[] = wrongPack?.questions ?? [];
             const next = idx + 1;
 
             // ✅ 如果已经到尾，就留在尾端，交给 isFinished 去显示完成页
@@ -585,48 +626,51 @@ export default function SessionClient(props: SessionClientProps) {
   }, []);
 
   /* ================= 完成畫面 ================= */
-  if (isFinished) {
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+if (isFinished) {
+  if (timerRef.current) {
+    window.clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
 
-    // wrong 模式完成页
-    if (isWrongMode) {
-      return (
-        <main style={wrap}>
-          <div style={card}>
-            <div style={{ fontWeight: 900, fontSize: 34, display: "flex", gap: 10, alignItems: "center" }}>
-              🎉 錯題重練完成
-            </div>
+  // ✅ wrong 模式完成
+  if (isWrongMode) {
+    const total = wrongPack?.questions.length ?? 0;
 
-            <div style={{ height: 10 }} />
-
-            <div style={{ ...row, alignItems: "center" }}>
-              <span style={pill}>{subject}</span>
-              <span style={pill}>{stage}</span>
-              <span style={pill}>題數：{answeredCount}/{totalCount}</span>
-              <span style={pill}>用時：{格式化時間(wrongElapsedSec)}</span>
-            </div>
-
-            <div style={{ height: 8 }} />
-
-            <div style={row}>
-              <span style={pill}>答對：{wrongCorrect}</span>
-              <span style={pill}>答錯：{wrongWrong}</span>
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <button style={btnPrimary} onClick={backToPractice}>
-              回錯題本
-            </button>
+    return (
+      <main style={wrap}>
+        <div style={card}>
+          <div style={{ fontWeight: 900, fontSize: 34, display: "flex", gap: 10, alignItems: "center" }}>
+            🎉 錯題重練完成
           </div>
-        </main>
-      );
-    }
 
-    // normal 模式完成页（原逻辑）
+          <div style={{ height: 10 }} />
+
+          <div style={{ ...row, alignItems: "center" }}>
+            <span style={pill}>{subject || "-"}</span>
+            <span style={pill}>{stage || "-"}</span>
+            <span style={pill}>題數：{total}/{total}</span>
+            <span style={pill}>用時：{格式化時間(wrongElapsedSec ?? 0)}</span>
+          </div>
+
+          <div style={{ height: 8 }} />
+
+          <div style={row}>
+            <span style={pill}>答對：{wrongCorrect ?? 0}</span>
+            <span style={pill}>答錯：{wrongWrong ?? 0}</span>
+          </div>
+
+          <div style={{ height: 12 }} />
+
+          <button style={btnPrimary} onClick={backToPractice}>
+            回錯題本
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ✅ normal 模式完成（原本你的邏輯）
+  if (session) {
     return (
       <main style={wrap}>
         <div style={card}>
@@ -637,17 +681,17 @@ export default function SessionClient(props: SessionClientProps) {
           <div style={{ height: 10 }} />
 
           <div style={{ ...row, alignItems: "center" }}>
-            <span style={pill}>{session?.subject}</span>
-            <span style={pill}>{(session as any)?.stage ?? "-"}</span>
+            <span style={pill}>{session.subject}</span>
+            <span style={pill}>{(session as any).stage ?? "-"}</span>
             <span style={pill}>題數：{TOTAL_QUESTIONS}/{TOTAL_QUESTIONS}</span>
-            <span style={pill}>用時：{格式化時間(session?.elapsedSec ?? 0)}</span>
+            <span style={pill}>用時：{格式化時間(session.elapsedSec ?? 0)}</span>
           </div>
 
           <div style={{ height: 8 }} />
 
           <div style={row}>
-            <span style={pill}>答對：{session?.correctCount ?? 0}</span>
-            <span style={pill}>答錯：{session?.wrongCount ?? 0}</span>
+            <span style={pill}>答對：{session.correctCount ?? 0}</span>
+            <span style={pill}>答錯：{session.wrongCount ?? 0}</span>
           </div>
 
           <div style={{ height: 12 }} />
@@ -659,6 +703,7 @@ export default function SessionClient(props: SessionClientProps) {
       </main>
     );
   }
+}
 
   /* ================= 空狀態 ================= */
   if (!isWrongMode && !session) {
@@ -695,26 +740,29 @@ export default function SessionClient(props: SessionClientProps) {
             <span style={pill}>{stage || "-"}</span>
 
             <span style={pill}>
-              第 {Math.min((isWrongMode ? wrongIndex : (session!.currentIndex ?? 0)) + 1, totalCount)}/{totalCount}
-            </span>
+  第 {isWrongMode ? wrongIndex + 1 : Math.min((session.currentIndex ?? 0) + 1, TOTAL_QUESTIONS)}
+  /{isWrongMode ? (wrongPack?.questions.length ?? 0) : TOTAL_QUESTIONS}
+</span>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={pill}>⏱ {格式化時間(isWrongMode ? wrongElapsedSec : (session!.elapsedSec ?? 0))}</span>
+  <span style={pill}>
+    ⏱ {isWrongMode ? 格式化時間(wrongElapsedSec ?? 0) : 格式化時間(session.elapsedSec ?? 0)}
+  </span>
 
-            {!isWrongMode ? (
-              <button
-                onClick={togglePause}
-                style={{
-                  ...pill,
-                  cursor: "pointer",
-                  background: "#fff",
-                }}
-              >
-                {session!.paused ? "▶ 繼續" : "⏸ 暫停"}
-              </button>
-            ) : null}
-          </div>
+  {!isWrongMode ? (
+    <button
+      onClick={togglePause}
+      style={{
+        ...pill,
+        cursor: "pointer",
+        background: "#fff",
+      }}
+    >
+      {session.paused ? "▶ 繼續" : "⏸ 暫停"}
+    </button>
+  ) : null}
+</div>
         </div>
 
         {!isWrongMode && session!.paused ? (
@@ -818,60 +866,75 @@ export default function SessionClient(props: SessionClientProps) {
 
       <div style={{ height: 10 }} />
 
-      {/* ===== 提示區 ===== */}
-      <div style={card}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button
-              style={{ ...btn, opacity: canHint ? 1 : 0.5 }}
-              onClick={onHint}
-              disabled={!canHint}
-            >
-              顯示提示
-            </button>
+      {/* ===== 提示區（顯示提示 + 次數 + 對/錯 固定同一排）===== */}
+<div style={card}>
+  {!isWrongMode ? (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button
+            style={{ ...btn, opacity: !session.paused && canHint ? 1 : 0.5 }}
+            onClick={onHint}
+            disabled={session.paused || !canHint}
+          >
+            顯示提示
+          </button>
 
-            {!isWrongMode ? (
-              <span style={pill}>
-                {session!.hintUsed ?? 0}/{hintLimit}
-              </span>
-            ) : (
-              <span style={pill}>提示：≤ {hintLimit}</span>
-            )}
+          <span style={pill}>
+            {session.hintUsed ?? 0}/{hintLimit}
+          </span>
 
-            <span style={pill}>對 {isWrongMode ? wrongCorrect : (session!.correctCount ?? 0)}</span>
-            <span style={pill}>錯 {isWrongMode ? wrongWrong : (session!.wrongCount ?? 0)}</span>
-          </div>
-
-          <div />
+          <span style={pill}>對 {session.correctCount ?? 0}</span>
+          <span style={pill}>錯 {session.wrongCount ?? 0}</span>
         </div>
 
-        <div
-          style={{
-            marginTop: 10,
-            padding: 12,
-            borderRadius: 12,
-            border: "1px dashed #e0e0e0",
-            opacity: hintText ? 1 : 0.7,
-          }}
-        >
-          {hintText ? hintText : "提示可在作答前使用，協助理解題目。"}
-        </div>
+        <div />
       </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          padding: 12,
+          borderRadius: 12,
+          border: "1px dashed #e0e0e0",
+          opacity: hintText ? 1 : 0.7,
+        }}
+      >
+        {hintText ? hintText : "提示可在作答前使用，協助理解題目。"}
+      </div>
+    </>
+  ) : (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={pill}>錯題重練模式（不提供提示）</span>
+        <span style={pill}>對 {wrongCorrect ?? 0}</span>
+        <span style={pill}>錯 {wrongWrong ?? 0}</span>
+      </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          padding: 12,
+          borderRadius: 12,
+          border: "1px dashed #e0e0e0",
+          opacity: 0.8,
+        }}
+      >
+        答對會自動從錯題本移除；答錯會保留，之後可再重練。
+      </div>
+    </>
+  )}
+</div>
 
       <Whiteboard open={whiteboardOpen} onClose={() => setWhiteboardOpen(false)} />
     </main>
   );
-}
-
-// 小工具
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
 }
