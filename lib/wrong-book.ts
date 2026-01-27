@@ -1,85 +1,176 @@
 // lib/wrong-book.ts
-// v3-3：錯題本（依 科目 -> 階段 分桶）
-// 存在 localStorage：wrongBook.v1
+// ✅ v3-3：錯題本（依「科目 -> 階段」分桶）
+// localStorage 儲存結構：
+// {
+//   version: 1,
+//   buckets: {
+//     "<subject>|||<stage>": {
+//        subject: "英文",
+//        stage: "A1",
+//        qids: ["en-a1-01", ...],
+//        updatedAt: 1700000000000
+//     },
+//     ...
+//   }
+// }
 
-export type WrongBook = Record<string, Record<string, string[]>>;
+export type WrongBucket = {
+  subject: string;
+  stage: string;
+  qids: string[];
+  updatedAt: number;
+};
 
-const KEY = "wrongBook.v1";
+type Store = {
+  version: 1;
+  buckets: Record<string, WrongBucket>;
+};
 
-function safeParse(json: string | null): WrongBook {
-  if (!json) return {};
+const KEY = "__PRACTICE_WRONG_BOOK_V1__";
+
+function safeNow() {
+  return Date.now();
+}
+
+function isBrowser() {
+  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
+function makeBucketKey(subject: string, stage: string) {
+  return `${String(subject)}|||${String(stage)}`;
+}
+
+function readStore(): Store {
+  if (!isBrowser()) return { version: 1, buckets: {} };
+
   try {
-    const obj = JSON.parse(json);
-    if (!obj || typeof obj !== "object") return {};
-    return obj as WrongBook;
-  } catch {
-    return {};
-  }
-}
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { version: 1, buckets: {} };
 
-export function readWrongBook(): WrongBook {
-  if (typeof window === "undefined") return {};
-  return safeParse(window.localStorage.getItem(KEY));
-}
+    const parsed = JSON.parse(raw) as Partial<Store>;
+    if (!parsed || parsed.version !== 1 || !parsed.buckets) return { version: 1, buckets: {} };
 
-export function writeWrongBook(book: WrongBook) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(book));
-}
-
-// ✅ 你 SessionClient.tsx 用的就是這個名字：addWrongQuestion
-export function addWrongQuestion(subject: string, stage: string, qid: string) {
-  if (typeof window === "undefined") return;
-
-  const book = readWrongBook();
-  const s = subject || "未知科目";
-  const st = stage || "未知階段";
-
-  const bucket = book[s] ?? {};
-  const ids = bucket[st] ?? [];
-
-  // 去重：同一題只記一次
-  if (!ids.includes(qid)) ids.push(qid);
-
-  bucket[st] = ids;
-  book[s] = bucket;
-
-  writeWrongBook(book);
-}
-
-export function clearWrongBookAll() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(KEY);
-}
-
-export function clearWrongBookBucket(subject: string, stage: string) {
-  if (typeof window === "undefined") return;
-
-  const book = readWrongBook();
-  if (!book[subject]) return;
-  if (!book[subject][stage]) return;
-
-  delete book[subject][stage];
-  // 如果該科目已沒有任何階段，清掉科目 key
-  if (Object.keys(book[subject]).length === 0) delete book[subject];
-
-  writeWrongBook(book);
-}
-
-// 讓 UI 好用：列出所有桶（subject/stage/ids）
-export function listWrongBuckets(): Array<{ subject: string; stage: string; ids: string[] }> {
-  const book = readWrongBook();
-  const out: Array<{ subject: string; stage: string; ids: string[] }> = [];
-
-  for (const subject of Object.keys(book)) {
-    const stages = book[subject] ?? {};
-    for (const stage of Object.keys(stages)) {
-      const ids = stages[stage] ?? [];
-      if (ids.length > 0) out.push({ subject, stage, ids });
+    // 基本防呆
+    const buckets: Record<string, WrongBucket> = {};
+    for (const k of Object.keys(parsed.buckets)) {
+      const b = (parsed.buckets as any)[k] as WrongBucket;
+      if (!b || !b.subject || !b.stage || !Array.isArray(b.qids)) continue;
+      buckets[k] = {
+        subject: String(b.subject),
+        stage: String(b.stage),
+        qids: Array.from(new Set(b.qids.map((x) => String(x)))),
+        updatedAt: Number(b.updatedAt ?? safeNow()),
+      };
     }
+
+    return { version: 1, buckets };
+  } catch {
+    return { version: 1, buckets: {} };
+  }
+}
+
+function writeStore(store: Store) {
+  if (!isBrowser()) return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
+
+/** ✅ 新增一題錯題（依 subject/stage 分桶；同題不重複） */
+export function addWrongQuestion(subject: string, stage: string, qid: string) {
+  if (!isBrowser()) return;
+
+  const s = readStore();
+  const key = makeBucketKey(subject, stage);
+
+  const prev = s.buckets[key] ?? {
+    subject,
+    stage,
+    qids: [],
+    updatedAt: safeNow(),
+  };
+
+  const set = new Set(prev.qids);
+  set.add(String(qid));
+
+  s.buckets[key] = {
+    subject: prev.subject,
+    stage: prev.stage,
+    qids: Array.from(set),
+    updatedAt: safeNow(),
+  };
+
+  writeStore(s);
+}
+
+/** 取得某分桶（科目+階段）的錯題列表 */
+export function getWrongBucket(subject: string, stage: string): WrongBucket {
+  const s = readStore();
+  const key = makeBucketKey(subject, stage);
+  return (
+    s.buckets[key] ?? {
+      subject,
+      stage,
+      qids: [],
+      updatedAt: 0,
+    }
+  );
+}
+
+/** ✅ 列出全部分桶摘要：[{subject, stage, count, updatedAt}] */
+export function listWrongSummary(): Array<{
+  subject: string;
+  stage: string;
+  count: number;
+  updatedAt: number;
+}> {
+  const s = readStore();
+  const out: Array<{ subject: string; stage: string; count: number; updatedAt: number }> = [];
+
+  for (const k of Object.keys(s.buckets)) {
+    const b = s.buckets[k];
+    out.push({
+      subject: b.subject,
+      stage: b.stage,
+      count: b.qids.length,
+      updatedAt: b.updatedAt,
+    });
   }
 
-  // 穩定排序：subject 再 stage
-  out.sort((a, b) => (a.subject + a.stage).localeCompare(b.subject + b.stage, "zh-Hant"));
+  // 最新的放前面
+  out.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
   return out;
+}
+
+/** 移除某分桶中的某題 */
+export function removeWrongQuestion(subject: string, stage: string, qid: string) {
+  if (!isBrowser()) return;
+
+  const s = readStore();
+  const key = makeBucketKey(subject, stage);
+  const b = s.buckets[key];
+  if (!b) return;
+
+  const next = b.qids.filter((x) => x !== String(qid));
+  s.buckets[key] = { ...b, qids: next, updatedAt: safeNow() };
+
+  writeStore(s);
+}
+
+/** 清空某分桶 */
+export function clearWrongBucket(subject: string, stage: string) {
+  if (!isBrowser()) return;
+
+  const s = readStore();
+  const key = makeBucketKey(subject, stage);
+  delete s.buckets[key];
+  writeStore(s);
+}
+
+/** 清空全部錯題本 */
+export function clearAllWrongBook() {
+  if (!isBrowser()) return;
+  writeStore({ version: 1, buckets: {} });
 }
