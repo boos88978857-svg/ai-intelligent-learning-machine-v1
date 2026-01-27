@@ -75,12 +75,10 @@ export default function WrongSessionClient() {
   }
 
   return (
-    <SessionClient
-      /** 👇 關鍵：明確告訴 SessionClient 這是錯題模式 */
-      mode="wrong"
-      subject={subject}
-      stage={stage}
-      questions={questions}
-    />
-  );
+  <SessionClient
+    subject={subject}
+    stage={stage}
+    questions={questions}
+  />
+);
 }
