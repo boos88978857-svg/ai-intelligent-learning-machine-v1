@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { getWrongBookSnapshot, onWrongBookUpdated } from "../../../../lib/wrong-book";
+import { getWrongBookSnapshot } from "../../../../lib/wrong-book";
 import { getQuestionByIndex, getStageCount, type Question } from "../../session/question-bank";
 
 import SessionClient from "../../session/SessionClient";
@@ -13,7 +13,7 @@ import SessionClient from "../../session/SessionClient";
  * 錯題重練專用 Client
  * - 不讀原本進度
  * - 只使用錯題本 qids
- * - 答對就自動 removeWrongQuestion（這部分你已經在 SessionClient 做好了）
+ * - ⚠️ 不要訂閱 onWrongBookUpdated：避免重練中題單被刷新變短 → 提前完成
  */
 export default function WrongSessionClient() {
   const router = useRouter();
@@ -57,11 +57,9 @@ export default function WrongSessionClient() {
     setQuestions(list);
   };
 
-  // 首次加载 + 监听错题本更新（答对会 remove，页面会立刻刷新）
+  // ✅ 只在進入這個 subject+stage 時載入一次（不要在重練中跟著 localStorage 變動）
   useEffect(() => {
     load();
-    const off = onWrongBookUpdated(load);
-    return () => off?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, stage]);
 
@@ -87,13 +85,5 @@ export default function WrongSessionClient() {
     );
   }
 
-  // ✅ 关键：用 wrong 模式交给 SessionClient（你已经做了：答对自动 remove）
-  return (
-    <SessionClient
-      mode="wrong"
-      subject={subject}
-      stage={stage}
-      questions={questions}
-    />
-  );
+  return <SessionClient mode="wrong" subject={subject} stage={stage} questions={questions} />;
 }
