@@ -1,84 +1,41 @@
 // app/practice/wrong/session/wrong-session-client.tsx
 "use client";
 
-import React, { useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-
-import { getWrongBookSnapshot } from "../../../../lib/wrong-book";
-import { getQuestionById, type Question } from "../../session/question-bank";
-
-import SessionClient from "../../session/SessionClient";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 /**
- * 錯題重練專用 Client
- * - 不讀原本進度
- * - 只用錯題本 qids
+ * 錯題重練入口 Client
+ *
+ * 職責只有一個：
+ * - 從 URL 讀 subject / stage
+ * - 轉跳到 /practice/session（錯題模式）
+ *
+ * ❌ 不 render SessionClient
+ * ❌ 不自己組 questions
  */
 export default function WrongSessionClient() {
   const router = useRouter();
   const search = useSearchParams();
 
-  const subject = search.get("subject") ?? "";
-  const stage = search.get("stage") ?? "";
+  const subject = search.get("subject");
+  const stage = search.get("stage");
 
-  // 讀錯題本
-  const wrongQids: string[] = useMemo(() => {
-    const snapshot = getWrongBookSnapshot();
-    return snapshot?.[subject]?.[stage] ?? [];
-  }, [subject, stage]);
+  useEffect(() => {
+    if (!subject || !stage) {
+      // 參數不完整 → 回錯題本
+      router.replace("/practice/wrong");
+      return;
+    }
 
-  // 沒參數 → 回錯題本首頁
-  if (!subject || !stage) {
-    return (
-      <main style={{ padding: 20 }}>
-        <p>缺少參數，無法進入錯題重練。</p>
-        <button onClick={() => router.push("/practice/wrong")}>
-          回錯題本
-        </button>
-      </main>
+    // ✅ 關鍵：用 URL 告訴 SessionClient 這是「錯題模式」
+    router.replace(
+      `/practice/session?wrong=1&subject=${encodeURIComponent(
+        subject
+      )}&stage=${encodeURIComponent(stage)}`
     );
-  }
+  }, [router, subject, stage]);
 
-  // 沒錯題
-  if (wrongQids.length === 0) {
-    return (
-      <main style={{ padding: 20 }}>
-        <h2>🎉 太好了</h2>
-        <p>
-          <strong>{subject}</strong> / <strong>{stage}</strong> 目前沒有錯題
-        </p>
-        <button onClick={() => router.push("/practice/wrong")}>
-          回錯題本
-        </button>
-      </main>
-    );
-  }
-
-  /**
-   * 將錯題 qids 轉成 Question[]
-   * 避免 question-bank 裡不存在的題目
-   */
-  const questions: Question[] = wrongQids
-    .map((qid) => getQuestionById(qid))
-    .filter((q): q is Question => Boolean(q));
-
-  // 理論上不該發生，但防炸
-  if (questions.length === 0) {
-    return (
-      <main style={{ padding: 20 }}>
-        <p>錯題資料異常，請重新練習後再試。</p>
-        <button onClick={() => router.push("/practice/wrong")}>
-          回錯題本
-        </button>
-      </main>
-    );
-  }
-
-  return (
-  <SessionClient
-    subject={subject}
-    stage={stage}
-    questions={questions}
-  />
-);
+  // 這個頁面不顯示任何 UI，只負責導向
+  return null;
 }
