@@ -297,10 +297,15 @@ const answeredCount = useMemo(() => {
   return (session.correctCount ?? 0) + (session.wrongCount ?? 0);
 }, [isWrongMode, wrongCorrect, wrongWrong, session]);
 
+// ✅ 完成判定：wrong 模式用「走到最後一題之後」判定，不用 answeredCount（避免答錯但未跳題就完成）
 const isFinished = useMemo(() => {
-  if (isWrongMode) return totalQuestions > 0 && answeredCount >= totalQuestions;
+  if (isWrongMode) {
+    const total = wrongPack?.questions.length ?? 0;
+    if (total <= 0) return false;
+    return wrongIndex >= total; // ✅ 索引走到尾巴才算完成
+  }
   return answeredCount >= TOTAL_QUESTIONS;
-}, [isWrongMode, answeredCount, totalQuestions]);
+}, [isWrongMode, wrongPack, wrongIndex, answeredCount]);
 
 // ✅ 錯題重練：暫時不提供提示（避免碰到 session.hintUsed / hintLimit）
 const hintLimit = useMemo(() => {
@@ -486,21 +491,22 @@ useEffect(() => {
   // ✅ 手動下一題前，把紅色浮水印立刻復原（避免卡住）
   wmResetNow();
 
-  // ✅ wrong 模式：推進 wrongIndex（不動 session、不寫入進度）
+  // ✅ wrong 模式：推進 wrongIndex（允許走到 total，讓完成頁正常出現）
   if (isWrongMode) {
     const total = wrongPack?.questions.length ?? 0;
     if (total <= 0) return;
 
     setWrongIndex((idx) => {
       const next = idx + 1;
-      return next >= total ? idx : next;
+      // ✅ 允許 next === total（代表已做完最後一題，下一步進完成頁）
+      return next > total ? total : next;
     });
 
     goNextCommonReset();
     return;
   }
 
-  // ✅ normal 模式：沿用你原本 session 推進
+  // ✅ normal 模式：沿用原本 session 推進
   if (!session) return;
 
   setSession((prev) => {
@@ -541,38 +547,35 @@ useEffect(() => {
     // - 答错：保留在错题本 + 开放「下一题」手动跳
     // =========================
     if (isWrongMode) {
-      if (isCorrect) {
-        // ✅ 答对：从错题本移除
-        removeWrongQuestion(subject, stage, q.id);
+  const total = wrongPack?.questions.length ?? 0;
 
-        // ✅ 计数：只 +1（你现在出现 “答对两题” 就是这里以前被加了两次）
-        setWrongCorrect((c) => c + 1);
+  if (isCorrect) {
+    // ✅ 答對：从錯題本移除（不影响本回合题单，因为题单已冻结）
+    removeWrongQuestion(subject, stage, q.id);
 
-        setMsg("✅ 正確。準備進入下一題…");
-        setCanGoNext(false);
+    setWrongCorrect((c) => c + 1);
+    setMsg("✅ 正確。準備進入下一題…");
+    setCanGoNext(false);
 
-        clearNextTimer();
-        nextTimerRef.current = window.setTimeout(() => {
-          setWrongIndex((idx) => {
-            const arr: Question[] = wrongPack?.questions ?? [];
-            const next = idx + 1;
+    clearNextTimer();
+    nextTimerRef.current = window.setTimeout(() => {
+      setWrongIndex((idx) => {
+        const next = idx + 1;
+        // ✅ 允许 next === total -> 完成
+        return next > total ? total : next;
+      });
 
-            // ✅ 如果已经到尾，就留在尾端，交给 isFinished 去显示完成页
-            if (next >= arr.length) return idx;
-            return next;
-          });
-
-          goNextCommonReset();
-        }, 800);
-      } else {
-        // ❌ 答错：保留（不移除）
-        setWrongWrong((w) => w + 1);
-        setMsg("❌ 錯誤。本題仍保留在錯題清單；按「下一題」繼續。");
-        setCanGoNext(true);
-        wmPulseOnWrong(1200);
-      }
-      return;
-    }
+      goNextCommonReset();
+    }, 800);
+  } else {
+    // ❌ 答錯：保留（不移除）；用户点“下一题”才跳
+    setWrongWrong((w) => w + 1);
+    setMsg("❌ 錯誤。本題仍保留在錯題清單；按「下一題」繼續。");
+    setCanGoNext(true);
+    wmPulseOnWrong(1200);
+  }
+  return;
+}
 
     // =========================
     // ✅ normal 模式：写入进度 + 写入错题本
