@@ -30,3 +30,29 @@ export default function WrongSessionClient() {
   const stage = sp.get("stage") ?? "";
 
   const [questions, setQuestions] = useState<Question[]>([]);
+
+  useEffect(() => {
+    if (!subject || !stage) return;
+
+    // 讀取錯題本快照
+    const snapshot = getWrongBookSnapshot();
+    const stageQids = snapshot?.[subject]?.[stage] ?? [];
+
+    if (stageQids.length === 0) {
+      setQuestions([]);
+      return;
+    }
+
+    // 將 qid 轉成 Question
+    const list: Question[] = [];
+
+    stageQids.forEach((qid, idx) => {
+      // 利用現有題庫 API：index 只是占位，不會真的用
+      const q = getQuestionByIndex(subject, stage, idx);
+      if (q && q.id === qid) {
+        list.push(q);
+      }
+    });
+
+    setQuestions(list);
+  }, [subject, stage]);
