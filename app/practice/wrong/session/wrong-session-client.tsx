@@ -71,10 +71,11 @@ export default function WrongSessionClient() {
   }
 
   return (
-    <SessionClient
-      subject={subject}
-      stage={stage}
-      questions={questions}
-    />
-  );
+  <SessionClient
+    mode="wrong"
+    subject={subject}
+    stage={stage}
+    questions={questions}
+  />
+);
 }
