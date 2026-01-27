@@ -58,10 +58,12 @@ export default function WrongClient() {
 
   // ✅ 每個 stage 只給一個入口：進入錯題重練（由 Session 頁自行挑題）
   function goPractice(subject: string, stage: string) {
-    router.push(
-      `/practice/session?wrong=1&subject=${encodeURIComponent(subject)}&stage=${encodeURIComponent(stage)}`
-    );
-  }
+  router.push(
+    `/practice/wrong/session?subject=${encodeURIComponent(
+      subject
+    )}&stage=${encodeURIComponent(stage)}`
+  );
+}
 
   return (
     <main style={wrap}>
