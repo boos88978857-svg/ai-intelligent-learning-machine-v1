@@ -154,11 +154,15 @@ export default function SessionClient(props: SessionClientProps) {
   // normal 模式才會用到 session（寫入/讀取進度）
   const [session, setSession] = useState<PracticeSession | null>(null);
 
-  // wrong 模式：本地錯題回合狀態（完全不碰 session / localStorage）
-  const [wrongIndex, setWrongIndex] = useState(0);
-  const [wrongCorrect, setWrongCorrect] = useState(0);
-  const [wrongWrong, setWrongWrong] = useState(0);
-  const [wrongElapsedSec, setWrongElapsedSec] = useState(0);
+  // wrong 模式：本地錯題回合狀態
+const [wrongIndex, setWrongIndex] = useState(0);
+const [wrongCorrect, setWrongCorrect] = useState(0);
+const [wrongWrong, setWrongWrong] = useState(0);
+const [wrongElapsedSec, setWrongElapsedSec] = useState(0);
+
+// ✅【新增】錯題重練提示次數
+const WRONG_HINT_LIMIT = 3;
+const [wrongHintUsed, setWrongHintUsed] = useState(0);
 
   // UI
   const [msg, setMsg] = useState<string | null>(null);
@@ -309,16 +313,16 @@ const isFinished = useMemo(() => {
 
 // ✅ 錯題重練：暫時不提供提示（避免碰到 session.hintUsed / hintLimit）
 const hintLimit = useMemo(() => {
-  if (isWrongMode) return 0;
+  if (isWrongMode) return WRONG_HINT_LIMIT;
   return (session?.hintLimit ?? 5) as number;
 }, [isWrongMode, session]);
 
 const canHint = useMemo(() => {
-  if (isWrongMode) return false;
+  if (isWrongMode) return wrongHintUsed < WRONG_HINT_LIMIT;
   if (!session) return false;
   const used = session.hintUsed ?? 0;
   return used < hintLimit;
-}, [isWrongMode, session, hintLimit]);
+}, [isWrongMode, wrongHintUsed, session, hintLimit]);
 
 // ✅ 鎖定題目區選擇：wrong 模式不看 session.paused
 const locked = useMemo(() => {
@@ -451,9 +455,21 @@ useEffect(() => {
 
   /* ================= 操作：提示（normal 写 session；wrong 用本地计数） ================= */
   function onHint() {
-  // ✅ wrong 模式暫不提供提示（避免碰 session.hintUsed/hintLimit）
-  if (isWrongMode) return;
+  // ✅ 錯題重練模式：用本地提示次數
+  if (isWrongMode) {
+    if (!q) return;
 
+    if (wrongHintUsed >= WRONG_HINT_LIMIT) {
+      setHintText("提示次數已用完");
+      return;
+    }
+
+    setWrongHintUsed((n) => n + 1);
+    setHintText(q.hint || "提示：回想這題考的是哪個關鍵概念。");
+    return;
+  }
+
+  // ===== normal 模式（原本邏輯）=====
   if (!session) return;
   if (session.paused) return;
 
@@ -467,8 +483,7 @@ useEffect(() => {
   寫入進度(next);
   setSession(next);
 
-  if (q?.hint) setHintText(q.hint);
-  else setHintText("提示：先找關鍵字，再拆步驟，最後再判斷。");
+  setHintText(q?.hint || "提示：先找關鍵字，再拆步驟。");
 }
 
   /* ================= 作答流程（共用 UI） ================= */
@@ -479,13 +494,15 @@ useEffect(() => {
   }
 
   function goNextCommonReset() {
-    setPickedChoice(null);
-    setJudging(false);
-    setHintText(null);
-    setMsg(null);
-    setCanGoNext(false);
-    wmResetNow();
-  }
+  setPickedChoice(null);
+  setJudging(false);
+  setHintText(null);
+  setCanGoNext(false);
+  wmResetNow();
+
+  // ✅【新增】錯題重練提示重置
+  setWrongHintUsed(0);
+}
 
   function goNextManual() {
   // ✅ 手動下一題前，把紅色浮水印立刻復原（避免卡住）
