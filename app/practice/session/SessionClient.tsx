@@ -384,6 +384,12 @@ const stageCount = useMemo(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q?.id]);
 
+// ✅ 題目切換：清掉上一題的提示訊息（避免自動下一題後文字殘留）
+useEffect(() => {
+  if (!q) return;
+  setMsg(null);
+}, [q?.id]);
+
   // 离开页：清浮水印 timers
   useEffect(() => {
     return () => {
