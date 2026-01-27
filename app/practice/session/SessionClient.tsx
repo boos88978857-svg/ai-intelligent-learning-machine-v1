@@ -164,6 +164,8 @@ export default function SessionClient(props: SessionClientProps) {
   const [msg, setMsg] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
+const normalIndex = session?.currentIndex ?? 0;
+const normalElapsed = session?.elapsedSec ?? 0;
 
   // 题目与选项状态
   const [pickedChoice, setPickedChoice] = useState<string | null>(null);
@@ -740,14 +742,14 @@ if (isFinished) {
             <span style={pill}>{stage || "-"}</span>
 
             <span style={pill}>
-  第 {isWrongMode ? wrongIndex + 1 : Math.min((session.currentIndex ?? 0) + 1, TOTAL_QUESTIONS)}
+  第 {isWrongMode ? wrongIndex + 1 : Math.min(normalIndex + 1, TOTAL_QUESTIONS)}
   /{isWrongMode ? (wrongPack?.questions.length ?? 0) : TOTAL_QUESTIONS}
 </span>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
   <span style={pill}>
-    ⏱ {isWrongMode ? 格式化時間(wrongElapsedSec ?? 0) : 格式化時間(session.elapsedSec ?? 0)}
+    ⏱ {isWrongMode ? 格式化時間(wrongElapsedSec ?? 0) : 格式化時間(normalElapsed)}
   </span>
 
   {!isWrongMode ? (
