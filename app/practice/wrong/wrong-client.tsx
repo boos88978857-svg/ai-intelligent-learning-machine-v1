@@ -145,9 +145,6 @@ export default function WrongBookClient() {
           <button style={btn} onClick={() => router.push("/practice")}>
             ← 回學習區
           </button>
-          <button style={btn} onClick={reload}>
-            重新整理
-          </button>
         </div>
       </div>
 
