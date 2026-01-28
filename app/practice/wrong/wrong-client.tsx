@@ -1,35 +1,22 @@
+// app/practice/wrong/wrong-client.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
 import { getWrongBookSnapshot, onWrongBookUpdated } from "../../../lib/wrong-book";
+import { WRONG_SUBJECTS } from "./subjects";
 
-/** ================= 样式 ================= */
-const wrap: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "18px 14px" };
+/**
+ * Wrong Book UI:
+ * - 沒有錯題：顯示「目前沒有錯題」+ 不顯示科目區（整塊隱藏）
+ * - 有錯題：
+ *    - 未選 subject：顯示科目列表（只顯示有錯題的科目）
+ *    - 選了 subject：顯示該科目的 stages 列表
+ */
 
-const headerRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const title: React.CSSProperties = { fontSize: 34, fontWeight: 900, display: "flex", gap: 10, alignItems: "center" };
-const subTitle: React.CSSProperties = { marginTop: 6, opacity: 0.7, fontSize: 14 };
-
-const badge: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 999,
-  border: "1px solid #e6e6e6",
-  background: "#fafafa",
-  fontSize: 13,
-  whiteSpace: "nowrap",
-};
-
-const sectionTitle: React.CSSProperties = { marginTop: 16, marginBottom: 10, fontSize: 18, fontWeight: 900 };
-
-const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(1, minmax(0, 1fr))", gap: 12 };
+// ================= 基本樣式（沿用你現有風格，不亂改） =================
+const wrap: React.CSSProperties = { maxWidth: 900, margin: "0 auto", padding: "8px 0" };
 
 const card: React.CSSProperties = {
   padding: "14px",
@@ -38,11 +25,22 @@ const card: React.CSSProperties = {
   border: "1px solid #e6e6e6",
 };
 
-const cardTop: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };
+const row: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+};
 
-const stageTitle: React.CSSProperties = { fontSize: 20, fontWeight: 900 };
-
-const btnRow: React.CSSProperties = { marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" };
+const pill: React.CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid #e6e6e6",
+  background: "#fafafa",
+  fontSize: 12,
+  whiteSpace: "nowrap",
+};
 
 const btn: React.CSSProperties = {
   padding: "10px 12px",
@@ -59,164 +57,167 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
-const btnGhost: React.CSSProperties = {
-  ...btn,
-  background: "#fff",
-};
+function countTotal(snapshot: any): number {
+  if (!snapshot) return 0;
+  let total = 0;
+  Object.keys(snapshot).forEach((subject) => {
+    const stageMap = snapshot?.[subject] ?? {};
+    Object.keys(stageMap).forEach((stage) => {
+      const arr = stageMap?.[stage] ?? [];
+      total += Array.isArray(arr) ? arr.length : 0;
+    });
+  });
+  return total;
+}
 
-export default function WrongClient() {
+function getStagesOfSubject(snapshot: any, subjectKey: string): Array<{ stage: string; count: number }> {
+  const stageMap = snapshot?.[subjectKey] ?? {};
+  const stages = Object.keys(stageMap)
+    .map((stage) => ({
+      stage,
+      count: Array.isArray(stageMap?.[stage]) ? stageMap[stage].length : 0,
+    }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  return stages;
+}
+
+export default function WrongBookClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // ✅ 新增：用 query 控制层级
-  const subjectParam = (sp.get("subject") ?? "").trim();
+  const selectedSubject = sp.get("subject") ?? "";
 
-  const [snapshot, setSnapshot] = useState<Record<string, Record<string, string[]>>>({});
+  const [snapshot, setSnapshot] = useState<any>(null);
+
+  const reload = () => {
+    const s = getWrongBookSnapshot();
+    setSnapshot(s ?? null);
+  };
 
   useEffect(() => {
-    const load = () => {
-      const s = getWrongBookSnapshot() || {};
-      setSnapshot(s);
-    };
-    load();
-    const off = onWrongBookUpdated(load);
+    reload();
+    const off = onWrongBookUpdated(reload);
     return () => off?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const subjects = useMemo(() => Object.keys(snapshot || {}).sort(), [snapshot]);
+  const totalWrong = useMemo(() => countTotal(snapshot), [snapshot]);
 
-  function countAllTotal() {
-    let total = 0;
-    for (const subj of Object.keys(snapshot || {})) {
-      const stages = snapshot[subj] || {};
-      for (const st of Object.keys(stages)) total += (stages[st]?.length ?? 0);
-    }
-    return total;
-  }
+  // ✅ 只顯示「有錯題」的科目（你要的：沒錯題就空/隱藏）
+  const availableSubjects = useMemo(() => {
+    if (!snapshot) return [];
+    return WRONG_SUBJECTS.filter((s) => {
+      const stages = getStagesOfSubject(snapshot, s.bookKey);
+      return stages.length > 0;
+    });
+  }, [snapshot]);
 
-  function countSubjectTotal(stages: Record<string, string[]>) {
-    let total = 0;
-    for (const st of Object.keys(stages || {})) total += (stages[st]?.length ?? 0);
-    return total;
-  }
+  // ✅ 選中科目的 stages
+  const selectedStages = useMemo(() => {
+    if (!selectedSubject) return [];
+    return getStagesOfSubject(snapshot, selectedSubject);
+  }, [snapshot, selectedSubject]);
 
-  function goWrongSession(subject: string, stage: string) {
-    router.push(
-      `/practice/wrong/session?subject=${encodeURIComponent(subject)}&stage=${encodeURIComponent(stage)}`
-    );
-  }
-
-  function goSubject(subject: string) {
-    router.push(`/practice/wrong?subject=${encodeURIComponent(subject)}`);
-  }
-
-  function backToAllSubjects() {
+  function goBackToSubjectList() {
     router.push("/practice/wrong");
   }
 
-  /** ================= 视图 A：科目列表 ================= */
-  if (!subjectParam) {
-    return (
-      <main style={wrap}>
-        <div style={headerRow}>
-          <div>
-            <div style={title}>📕 錯題本</div>
-            <div style={subTitle}>先選科目，再選階段重練；答對後會自動移除</div>
-          </div>
-
-          <div style={badge}>總錯題：{countAllTotal()} 題</div>
-        </div>
-
-        {subjects.length === 0 ? (
-          <div style={{ marginTop: 16, opacity: 0.7 }}>目前還沒有錯題，繼續練習吧 💪</div>
-        ) : null}
-
-        <div style={sectionTitle}>科目</div>
-
-        <div style={grid}>
-          {subjects.map((subj) => {
-            const stages = snapshot[subj] || {};
-            const total = countSubjectTotal(stages);
-            if (total === 0) return null;
-
-            return (
-              <div key={subj} style={card}>
-                <div style={cardTop}>
-                  <div style={stageTitle}>{subj}</div>
-                  <span style={badge}>{total} 題</span>
-                </div>
-
-                <div style={{ opacity: 0.7, fontSize: 13, marginTop: 6 }}>
-                  進入後可看到各階段錯題
-                </div>
-
-                <div style={btnRow}>
-                  <button style={btnPrimary} onClick={() => goSubject(subj)}>
-                    進入科目 →
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </main>
-    );
+  function goPracticeStage(subject: string, stage: string) {
+    router.push(`/practice/wrong/session?subject=${encodeURIComponent(subject)}&stage=${encodeURIComponent(stage)}`);
   }
-
-  /** ================= 视图 B：某科目下的阶段列表 ================= */
-  const stages = snapshot?.[subjectParam] || {};
-  const stageKeys = Object.keys(stages).sort();
-  const subjectTotal = countSubjectTotal(stages);
 
   return (
     <main style={wrap}>
-      <div style={headerRow}>
-        <div>
-          <div style={title}>📕 錯題本</div>
-          <div style={subTitle}>
-            科目：<b>{subjectParam}</b>（{subjectTotal} 題）｜答對後會自動移除
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button style={btnGhost} onClick={backToAllSubjects}>
-            ← 回科目列表
-          </button>
-          <div style={badge}>總錯題：{countAllTotal()} 題</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+        <div style={{ fontWeight: 900, fontSize: 40, display: "flex", alignItems: "center", gap: 10 }}>
+          📕 錯題本
         </div>
       </div>
 
-      {subjectTotal === 0 ? (
-        <div style={{ marginTop: 16, opacity: 0.7 }}>這個科目目前沒有錯題。</div>
-      ) : null}
+      <div style={{ opacity: 0.75, marginBottom: 10 }}>先選科目，再選階段重練；答對後會自動移除</div>
 
-      <div style={sectionTitle}>階段</div>
+      <div style={{ ...row, marginBottom: 10 }}>
+        <span style={pill}>總錯題：{totalWrong} 題</span>
 
-      <div style={grid}>
-        {stageKeys.map((stage) => {
-          const qids = stages[stage] || [];
-          if (qids.length === 0) return null;
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={btn} onClick={() => router.push("/practice")}>
+            ← 回學習區
+          </button>
+          <button style={btn} onClick={reload}>
+            重新整理
+          </button>
+        </div>
+      </div>
 
-          return (
-            <div key={stage} style={card}>
-              <div style={cardTop}>
-                <div style={stageTitle}>{stage}</div>
-                <span style={badge}>{qids.length} 題</span>
-              </div>
+      {/* ✅ 沒錯題：顯示提示 + 科目區整塊隱藏 */}
+      {totalWrong === 0 ? (
+        <div style={card}>
+          <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>目前還沒有錯題，繼續練習吧 💪</div>
+          <div style={{ opacity: 0.75, fontSize: 13 }}>當你答錯時，系統會自動把題目記進錯題本。</div>
+        </div>
+      ) : (
+        <>
+          {/* ✅ 有錯題，但未選 subject：顯示科目列表（只顯示有錯題的科目） */}
+          {!selectedSubject ? (
+            <>
+              <div style={{ fontWeight: 900, fontSize: 22, margin: "14px 0 10px" }}>科目</div>
 
-              <div style={{ opacity: 0.7, fontSize: 13, marginTop: 6 }}>
-                尚未掌握的題目，建議完整重練
-              </div>
+              {availableSubjects.map((s) => {
+                const stages = getStagesOfSubject(snapshot, s.bookKey);
+                const sum = stages.reduce((acc, x) => acc + x.count, 0);
 
-              <div style={btnRow}>
-                <button style={btnPrimary} onClick={() => goWrongSession(subjectParam, stage)}>
-                  重練本階段 →
+                return (
+                  <div key={s.id} style={{ ...card, marginBottom: 10 }}>
+                    <div style={{ ...row }}>
+                      <div style={{ fontWeight: 900, fontSize: 18 }}>{s.label}</div>
+                      <span style={pill}>{sum} 題</span>
+                    </div>
+
+                    <div style={{ height: 10 }} />
+
+                    <button
+                      style={btnPrimary}
+                      onClick={() => router.push(`/practice/wrong?subject=${encodeURIComponent(s.bookKey)}`)}
+                    >
+                      進入 {s.label} →
+                    </button>
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {/* ✅ 已選 subject：顯示該科目的階段列表 */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 900, fontSize: 22, margin: "14px 0 10px" }}>
+                  {selectedSubject}（{selectedStages.reduce((a, x) => a + x.count, 0)} 題）
+                </div>
+
+                <button style={btn} onClick={goBackToSubjectList}>
+                  ← 回科目
                 </button>
               </div>
-            </div>
-          );
-        })}
-      </div>
+
+              {selectedStages.map((st) => (
+                <div key={st.stage} style={{ ...card, marginBottom: 10 }}>
+                  <div style={{ ...row }}>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>{st.stage}</div>
+                    <span style={pill}>{st.count} 題</span>
+                  </div>
+
+                  <div style={{ height: 10 }} />
+
+                  <button style={btnPrimary} onClick={() => goPracticeStage(selectedSubject, st.stage)}>
+                    重練本階段 →
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
     </main>
   );
 }
