@@ -1,32 +1,84 @@
 // lib/lang-config.ts
+"use client";
 
-export type UiLocale = "zh-Hant" | "zh-Hans" | "en" | "ja" | "ko";
-export type LearnLang = "en" | "ja" | "ko";
+export type LocaleCode =
+  | "zh-Hant"
+  | "zh-Hans"
+  | "en"
+  | "ja"
+  | "ko";
 
-/** UI 语言（母语 / 介面语言） */
-export const UI_LOCALES: { code: UiLocale; label: string }[] = [
-  { code: "zh-Hant", label: "繁體中文" },
-  { code: "zh-Hans", label: "简体中文" },
+export type LangConfig = {
+  native: LocaleCode;   // 母语
+  learning: LocaleCode; // 学习语言
+};
+
+const STORAGE_KEY = "langConfig.v1";
+
+const DEFAULT_CONFIG: LangConfig = {
+  native: "zh-Hant",
+  learning: "en",
+};
+
+function safeParse(json: string | null): LangConfig | null {
+  if (!json) return null;
+  try {
+    const obj = JSON.parse(json);
+    if (!obj || typeof obj !== "object") return null;
+    const native = String((obj as any).native ?? "");
+    const learning = String((obj as any).learning ?? "");
+    if (!native || !learning) return null;
+    return { native: native as LocaleCode, learning: learning as LocaleCode };
+  } catch {
+    return null;
+  }
+}
+
+export function hasLangConfig(): boolean {
+  if (typeof window === "undefined") return false;
+  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  return !!cfg;
+}
+
+export function getLangConfig(): LangConfig {
+  if (typeof window === "undefined") return DEFAULT_CONFIG;
+  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  return cfg ?? DEFAULT_CONFIG;
+}
+
+export function setLangConfig(cfg: LangConfig) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+}
+
+export function clearLangConfig() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STORAGE_KEY);
+}
+
+/** 给 UI 用：显示名字 */
+export function getLocaleLabel(code: LocaleCode): string {
+  switch (code) {
+    case "zh-Hant":
+      return "中文（繁體）";
+    case "zh-Hans":
+      return "中文（简体）";
+    case "en":
+      return "English";
+    case "ja":
+      return "日本語";
+    case "ko":
+      return "한국어";
+    default:
+      return code;
+  }
+}
+
+/** 给 UI 用：下拉/滚动列表 */
+export const LOCALE_OPTIONS: { code: LocaleCode; label: string }[] = [
+  { code: "zh-Hant", label: "中文（繁體）" },
+  { code: "zh-Hans", label: "中文（简体）" },
   { code: "en", label: "English" },
   { code: "ja", label: "日本語" },
   { code: "ko", label: "한국어" },
 ];
-
-/** 学习语言（目标语言） */
-export const LEARN_LANGS: { code: LearnLang; label: string; subjectName: string }[] = [
-  { code: "en", label: "英文 English", subjectName: "英文" },
-  { code: "ja", label: "日文 日本語", subjectName: "日文" },
-  { code: "ko", label: "韩文 한국어", subjectName: "韩文" },
-];
-
-/** localStorage keys（以后全站一致） */
-export const LS_UI_LOCALE_KEY = "app.uiLocale.v1";
-export const LS_LEARN_LANG_KEY = "app.learnLang.v1";
-
-/** 小工具：防呆读取 */
-export function isUiLocale(x: any): x is UiLocale {
-  return ["zh-Hant", "zh-Hans", "en", "ja", "ko"].includes(String(x));
-}
-export function isLearnLang(x: any): x is LearnLang {
-  return ["en", "ja", "ko"].includes(String(x));
-}
