@@ -1,142 +1,118 @@
+// app/practice/PracticeHome.tsx
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  getLangConfig,
-  getLocaleLabel,
-} from "../../lib/lang-config";
+
+import { getLangConfig, getLocaleLabel } from "../../lib/lang-config";
 
 const wrap: React.CSSProperties = {
   maxWidth: 1100,
   margin: "0 auto",
-  padding: "18px 14px",
-};
-
-const title: React.CSSProperties = {
-  fontSize: 28,
-  fontWeight: 900,
-  marginBottom: 6,
-};
-
-const sub: React.CSSProperties = {
-  opacity: 0.7,
-  marginBottom: 18,
-};
-
-const grid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 14,
+  padding: "16px 14px",
 };
 
 const card: React.CSSProperties = {
+  padding: "14px",
   borderRadius: 18,
-  border: "1px solid #e6e6e6",
   background: "#fff",
-  padding: 16,
-  cursor: "pointer",
-  transition: "transform .12s ease, box-shadow .12s ease",
+  border: "1px solid #e6e6e6",
 };
 
-const cardHover: React.CSSProperties = {
-  transform: "translateY(-2px)",
-  boxShadow: "0 8px 18px rgba(0,0,0,.06)",
+const title: React.CSSProperties = {
+  fontSize: 26,
+  fontWeight: 900,
+  marginBottom: 10,
 };
 
-const badge: React.CSSProperties = {
-  display: "inline-block",
-  padding: "4px 8px",
+const row: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+};
+
+const pill: React.CSSProperties = {
+  padding: "6px 10px",
   borderRadius: 999,
-  border: "1px solid #eee",
+  border: "1px solid #e6e6e6",
+  background: "#fafafa",
   fontSize: 12,
-  marginBottom: 8,
+  whiteSpace: "nowrap",
 };
+
+const btn: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  background: "#fff",
+  cursor: "pointer",
+};
+
+const btnPrimary: React.CSSProperties = {
+  ...btn,
+  border: "1px solid #111",
+  background: "#111",
+  color: "#fff",
+};
+
+type LangState = { native: string; learning: string } | null;
 
 export default function PracticeHome() {
   const router = useRouter();
-  const lang = useMemo(() => getLangConfig(), []);
+  const [lang, setLang] = useState<LangState>(null);
 
-  // ✅ 没选语言就强制回 Onboarding
+  // ✅ 关键：只在浏览器读取 localStorage（避免 prerender/build 炸掉）
   useEffect(() => {
-    if (!lang?.native || !lang?.learning) {
+    const cfg = getLangConfig();
+    setLang(cfg);
+  }, []);
+
+  // ✅ 没选语言 -> 导去 onboarding
+  useEffect(() => {
+    if (!lang) return; // 还没读到
+    if (!lang.native || !lang.learning) {
       router.replace("/onboarding");
     }
   }, [lang, router]);
 
-  const nativeLabel = getLocaleLabel(lang.native);
-  const learningLabel = getLocaleLabel(lang.learning);
+  // ✅ 还没读到配置前，不渲染（避免闪烁/误判）
+  if (!lang) return null;
 
   return (
     <main style={wrap}>
-      <div>
-        <div style={title}>学习首页</div>
-        <div style={sub}>
-          {nativeLabel} → {learningLabel}
+      <div style={card}>
+        <div style={row}>
+          <div>
+            <div style={title}>学习首页</div>
+            <div style={{ opacity: 0.75, fontSize: 13, lineHeight: 1.6 }}>
+              这里是你选完语言后的入口页（后续你要改成更精致的卡片/关卡入口都从这里扩展）。
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={pill}>母语：{getLocaleLabel(lang.native as any) || lang.native}</span>
+            <span style={pill}>学习：{getLocaleLabel(lang.learning as any) || lang.learning}</span>
+            <button style={btn} onClick={() => router.push("/onboarding")}>
+              更改语言
+            </button>
+          </div>
+        </div>
+
+        <div style={{ height: 12 }} />
+
+        {/* ✅ 先给你最基础入口（后续你要换成卡片、分 Level 0/1/2 都从这里改） */}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button style={btnPrimary} onClick={() => router.push("/practice")}>
+            进入练习区 →
+          </button>
+
+          <button style={btn} onClick={() => router.push("/practice/wrong")}>
+            错题本
+          </button>
         </div>
       </div>
-
-      <div style={grid}>
-        <HomeCard
-          title="📘 学习课程"
-          desc="从 0 基础到进阶，系统化学习"
-          onClick={() => router.push("/practice/learning")}
-        />
-
-        <HomeCard
-          title="📕 错题重练"
-          desc="专练你不会的内容"
-          onClick={() => router.push("/practice/wrong")}
-        />
-
-        <HomeCard
-          title="🤖 AI 对话（即将）"
-          desc="没有真人时，由 AI 陪你练"
-          disabled
-        />
-
-        <HomeCard
-          title="🌍 即时翻译（即将）"
-          desc="旅游、对话即时翻译"
-          disabled
-        />
-      </div>
     </main>
-  );
-}
-
-/* ================= 小组件 ================= */
-
-function HomeCard({
-  title,
-  desc,
-  onClick,
-  disabled,
-}: {
-  title: string;
-  desc: string;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const [hover, setHover] = React.useState(false);
-
-  return (
-    <div
-      style={{
-        ...card,
-        ...(hover && !disabled ? cardHover : {}),
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? "not-allowed" : "pointer",
-      }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={() => !disabled && onClick?.()}
-    >
-      {disabled ? <span style={badge}>即将开放</span> : null}
-      <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6 }}>
-        {title}
-      </div>
-      <div style={{ opacity: 0.75, fontSize: 13 }}>{desc}</div>
-    </div>
   );
 }
