@@ -1,16 +1,11 @@
 // lib/lang-config.ts
-"use client";
 
-export type LocaleCode =
-  | "zh-Hant"
-  | "zh-Hans"
-  | "en"
-  | "ja"
-  | "ko";
+export type LocaleCode = "zh-Hant" | "zh-Hans" | "en" | "ja" | "ko";
 
 export type LangConfig = {
-  native: LocaleCode;   // 母语
+  native: LocaleCode; // 母语
   learning: LocaleCode; // 学习语言
+  hasChosen: boolean; // ✅ 是否完成 onboarding 选择
 };
 
 const STORAGE_KEY = "langConfig.v1";
@@ -18,6 +13,7 @@ const STORAGE_KEY = "langConfig.v1";
 const DEFAULT_CONFIG: LangConfig = {
   native: "zh-Hant",
   learning: "en",
+  hasChosen: false,
 };
 
 function safeParse(json: string | null): LangConfig | null {
@@ -25,10 +21,18 @@ function safeParse(json: string | null): LangConfig | null {
   try {
     const obj = JSON.parse(json);
     if (!obj || typeof obj !== "object") return null;
+
     const native = String((obj as any).native ?? "");
     const learning = String((obj as any).learning ?? "");
+    const hasChosen = Boolean((obj as any).hasChosen ?? false);
+
     if (!native || !learning) return null;
-    return { native: native as LocaleCode, learning: learning as LocaleCode };
+
+    return {
+      native: native as LocaleCode,
+      learning: learning as LocaleCode,
+      hasChosen,
+    };
   } catch {
     return null;
   }
@@ -37,7 +41,7 @@ function safeParse(json: string | null): LangConfig | null {
 export function hasLangConfig(): boolean {
   if (typeof window === "undefined") return false;
   const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  return !!cfg;
+  return !!cfg?.hasChosen;
 }
 
 export function getLangConfig(): LangConfig {
@@ -46,9 +50,10 @@ export function getLangConfig(): LangConfig {
   return cfg ?? DEFAULT_CONFIG;
 }
 
-export function setLangConfig(cfg: LangConfig) {
+export function setLangConfig(cfg: Omit<LangConfig, "hasChosen">) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  const payload: LangConfig = { ...cfg, hasChosen: true };
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
 export function clearLangConfig() {
