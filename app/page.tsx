@@ -1,8 +1,15 @@
 // app/page.tsx
-import GateRedirect from "./GateRedirect";
+import { redirect } from "next/navigation";
+import { getLangConfig } from "../lib/lang-config";
 
-export default function Page() {
-  // ✅ 这里保持 Server Component，不碰 localStorage
-  // ✅ 真正判断放到 GateRedirect（client）里做
-  return <GateRedirect />;
+export default function RootPage() {
+  const cfg = getLangConfig();
+
+  // 没选过母语或学习语言 → 强制 onboarding
+  if (!cfg?.native || !cfg?.learning) {
+    redirect("/onboarding");
+  }
+
+  // 已完成语言选择 → 进入首页
+  redirect("/home");
 }
