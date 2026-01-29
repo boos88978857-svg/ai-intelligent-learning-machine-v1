@@ -1,12 +1,6 @@
 // app/practice/page.tsx
-import PracticeClient from "./PracticeClient";
+import PracticeHome from "./PracticeHome";
 
-export default function PracticePage({
-  searchParams,
-}: {
-  searchParams?: { subject?: string; stage?: string };
-}) {
-  const subject = searchParams?.subject ?? "";
-  const stage = searchParams?.stage ?? "";
-  return <PracticeClient subject={subject} stage={stage} />;
+export default function PracticePage() {
+  return <PracticeHome />;
 }
