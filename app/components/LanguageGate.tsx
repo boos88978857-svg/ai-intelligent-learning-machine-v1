@@ -258,52 +258,83 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
           <div style={col}>
             <div style={label}>母语</div>
             <div style={wheelWrap}>
-              <div style={wheel} ref={nativeWheel.ref}>
-                {LOCALE_OPTIONS.map((opt) => {
-                  const active = opt.code === nativeWheel.value;
-                  return (
-                    <div
-                      key={opt.code}
-                      style={{
-                        ...item,
-                        fontWeight: active ? 900 : 500,
-                        opacity: active ? 1 : 0.55,
-                      }}
-                      onClick={() => nativeWheel.scrollTo(opt.code)}
-                    >
-                      {opt.label}
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={centerMask} />
-            </div>
+  <div
+    style={{
+      ...wheel,
+      position: "relative",
+      zIndex: 2, // ✅ wheel 在最上层
+    }}
+    ref={nativeWheel.ref}
+  >
+    {LOCALE_OPTIONS.map((opt) => {
+      const active = opt.code === nativeWheel.value;
+      return (
+        <div
+          key={opt.code}
+          style={{
+            ...item,
+            fontWeight: active ? 900 : 500,
+            opacity: active ? 1 : 0.55,
+          }}
+          onClick={() => nativeWheel.scrollTo(opt.code)}
+        >
+          {opt.label}
+        </div>
+      );
+    })}
+  </div>
+
+  {/* 视觉用，不拦触控 */}
+  <div
+    style={{
+      ...centerMask,
+      pointerEvents: "none",
+      zIndex: 1,
+    }}
+  />
+</div>
           </div>
 
           {/* 学习语言 */}
           <div style={col}>
             <div style={label}>学习语言</div>
             <div style={wheelWrap}>
-              <div style={wheel} ref={learningWheel.ref}>
-                {LOCALE_OPTIONS.map((opt) => {
-                  const active = opt.code === learningWheel.value;
-                  return (
-                    <div
-                      key={opt.code}
-                      style={{
-                        ...item,
-                        fontWeight: active ? 900 : 500,
-                        opacity: active ? 1 : 0.55,
-                      }}
-                      onClick={() => learningWheel.scrollTo(opt.code)}
-                    >
-                      {opt.label}
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={centerMask} />
-            </div>
+              <div style={wheelWrap}>
+  <div
+    style={{
+      ...wheel,
+      position: "relative",
+      zIndex: 2, // ✅ wheel 在最上层
+    }}
+    ref={nativeWheel.ref}
+  >
+    {LOCALE_OPTIONS.map((opt) => {
+      const active = opt.code === nativeWheel.value;
+      return (
+        <div
+          key={opt.code}
+          style={{
+            ...item,
+            fontWeight: active ? 900 : 500,
+            opacity: active ? 1 : 0.55,
+          }}
+          onClick={() => nativeWheel.scrollTo(opt.code)}
+        >
+          {opt.label}
+        </div>
+      );
+    })}
+  </div>
+
+  {/* 视觉用，不拦触控 */}
+  <div
+    style={{
+      ...centerMask,
+      pointerEvents: "none",
+      zIndex: 1,
+    }}
+  />
+</div>
           </div>
         </div>
 
