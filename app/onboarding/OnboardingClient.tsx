@@ -168,3 +168,103 @@ function useWheel(initial: LocaleCode) {
 
   return { ref, value, setValue, scrollTo };
 }
+
+export default function OnboardingClient() {
+  const router = useRouter();
+
+  // 如果已经选过语言，直接进首页（避免你说的「第一次就进 home」问题）
+  useEffect(() => {
+    if (hasLangConfig()) {
+      router.replace("/practice");
+    }
+  }, [router]);
+
+  const saved = useMemo(() => getLangConfig(), []);
+  const nativeWheel = useWheel(saved.native);
+  const learningWheel = useWheel(saved.learning);
+
+  // Step 控制：1 = 选母语，2 = 选学习语言
+  const [step, setStep] = useState<1 | 2>(1);
+
+  function goNext() {
+    if (step === 1) setStep(2);
+  }
+
+  function goBack() {
+    if (step === 2) setStep(1);
+  }
+
+  function onConfirm() {
+    setLangConfig({
+      native: nativeWheel.value,
+      learning: learningWheel.value,
+    });
+    router.replace("/practice");
+  }
+
+  return (
+    <main style={wrap}>
+      <div style={card}>
+        <div style={title}>
+          {step === 1 ? "选择你的母语" : "选择你要学习的语言"}
+        </div>
+
+        <div style={sub}>
+          {step === 1
+            ? "我们会用你的母语来解释内容，你之后也可以随时更改。"
+            : "这是你接下来主要学习的语言，稍后会进入学习首页。"}
+        </div>
+
+        {/* ===== Step 1：母语 ===== */}
+        {step === 1 && (
+          <div style={section}>
+            <div style={label}>母语</div>
+            <div style={wheelWrap}>
+              <div style={wheel} ref={nativeWheel.ref}>
+                {LOCALE_OPTIONS.map((opt) => {
+                  const active = opt.code === nativeWheel.value;
+                  return (
+                    <div
+                      key={opt.code}
+                      style={{
+                        ...item,
+                        fontWeight: active ? 900 : 500,
+                        opacity: active ? 1 : 0.5,
+                      }}
+                      onClick={() => nativeWheel.scrollTo(opt.code)}
+                    >
+                      {opt.label}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== Step 2：学习语言 ===== */}
+        {step === 2 && (
+          <div style={section}>
+            <div style={label}>学习语言</div>
+            <div style={wheelWrap}>
+              <div style={wheel} ref={learningWheel.ref}>
+                {LOCALE_OPTIONS.map((opt) => {
+                  const active = opt.code === learningWheel.value;
+                  return (
+                    <div
+                      key={opt.code}
+                      style={{
+                        ...item,
+                        fontWeight: active ? 900 : 500,
+                        opacity: active ? 1 : 0.5,
+                      }}
+                      onClick={() => learningWheel.scrollTo(opt.code)}
+                    >
+                      {opt.label}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
