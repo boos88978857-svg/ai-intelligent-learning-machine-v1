@@ -1,11 +1,22 @@
 // lib/lang-config.ts
+"use client";
 
-export type LocaleCode = "zh-Hant" | "zh-Hans" | "en" | "ja" | "ko";
+export type LocaleCode =
+  | "en"          // English
+  | "zh-Hant"     // 中文（繁體）
+  | "zh-Hans"     // 中文（简体）
+  | "es"          // Español
+  | "fr"          // Français
+  | "de"          // Deutsch
+  | "ja"          // 日本語
+  | "ko"          // 한국어
+  | "pt"          // Português
+  | "it"          // Italiano
+  | "ru";         // Русский
 
 export type LangConfig = {
-  native: LocaleCode; // 母语
+  native: LocaleCode;   // 母语
   learning: LocaleCode; // 学习语言
-  hasChosen: boolean; // ✅ 是否完成 onboarding 选择
 };
 
 const STORAGE_KEY = "langConfig.v1";
@@ -13,26 +24,34 @@ const STORAGE_KEY = "langConfig.v1";
 const DEFAULT_CONFIG: LangConfig = {
   native: "zh-Hant",
   learning: "en",
-  hasChosen: false,
 };
+
+function isLocaleCode(x: any): x is LocaleCode {
+  const s = String(x);
+  return [
+    "en",
+    "zh-Hant",
+    "zh-Hans",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "pt",
+    "it",
+    "ru",
+  ].includes(s);
+}
 
 function safeParse(json: string | null): LangConfig | null {
   if (!json) return null;
   try {
     const obj = JSON.parse(json);
     if (!obj || typeof obj !== "object") return null;
-
-    const native = String((obj as any).native ?? "");
-    const learning = String((obj as any).learning ?? "");
-    const hasChosen = Boolean((obj as any).hasChosen ?? false);
-
-    if (!native || !learning) return null;
-
-    return {
-      native: native as LocaleCode,
-      learning: learning as LocaleCode,
-      hasChosen,
-    };
+    const native = (obj as any).native;
+    const learning = (obj as any).learning;
+    if (!isLocaleCode(native) || !isLocaleCode(learning)) return null;
+    return { native, learning };
   } catch {
     return null;
   }
@@ -41,7 +60,7 @@ function safeParse(json: string | null): LangConfig | null {
 export function hasLangConfig(): boolean {
   if (typeof window === "undefined") return false;
   const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  return !!cfg?.hasChosen;
+  return !!cfg;
 }
 
 export function getLangConfig(): LangConfig {
@@ -50,10 +69,9 @@ export function getLangConfig(): LangConfig {
   return cfg ?? DEFAULT_CONFIG;
 }
 
-export function setLangConfig(cfg: Omit<LangConfig, "hasChosen">) {
+export function setLangConfig(cfg: LangConfig) {
   if (typeof window === "undefined") return;
-  const payload: LangConfig = { ...cfg, hasChosen: true };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
 
 export function clearLangConfig() {
@@ -61,29 +79,47 @@ export function clearLangConfig() {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
-/** 给 UI 用：显示名字 */
+/** 显示名字（含国旗） */
 export function getLocaleLabel(code: LocaleCode): string {
   switch (code) {
-    case "zh-Hant":
-      return "中文（繁體）";
-    case "zh-Hans":
-      return "中文（简体）";
     case "en":
-      return "English";
+      return "English 🇺🇸🇬🇧";
+    case "zh-Hant":
+      return "中文（繁體）🇹🇼";
+    case "zh-Hans":
+      return "中文（简体）🇨🇳";
+    case "es":
+      return "Español 🇪🇸🇲🇽";
+    case "fr":
+      return "Français 🇫🇷";
+    case "de":
+      return "Deutsch 🇩🇪";
     case "ja":
-      return "日本語";
+      return "日本語 🇯🇵";
     case "ko":
-      return "한국어";
+      return "한국어 🇰🇷";
+    case "pt":
+      return "Português 🇵🇹🇧🇷";
+    case "it":
+      return "Italiano 🇮🇹";
+    case "ru":
+      return "Русский 🇷🇺";
     default:
       return code;
   }
 }
 
-/** 给 UI 用：下拉/滚动列表 */
+/** 滚动/选择列表 */
 export const LOCALE_OPTIONS: { code: LocaleCode; label: string }[] = [
-  { code: "zh-Hant", label: "中文（繁體）" },
-  { code: "zh-Hans", label: "中文（简体）" },
-  { code: "en", label: "English" },
-  { code: "ja", label: "日本語" },
-  { code: "ko", label: "한국어" },
+  { code: "en", label: "English 🇺🇸🇬🇧" },
+  { code: "zh-Hant", label: "中文（繁體）🇹🇼" },
+  { code: "zh-Hans", label: "中文（简体）🇨🇳" },
+  { code: "es", label: "Español 🇪🇸🇲🇽" },
+  { code: "fr", label: "Français 🇫🇷" },
+  { code: "de", label: "Deutsch 🇩🇪" },
+  { code: "ja", label: "日本語 🇯🇵" },
+  { code: "ko", label: "한국어 🇰🇷" },
+  { code: "pt", label: "Português 🇵🇹🇧🇷" },
+  { code: "it", label: "Italiano 🇮🇹" },
+  { code: "ru", label: "Русский 🇷🇺" },
 ];
