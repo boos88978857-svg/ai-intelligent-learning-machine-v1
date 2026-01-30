@@ -1,7 +1,7 @@
 // app/onboarding/OnboardingClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -43,33 +43,57 @@ const input: React.CSSProperties = {
   background: "#fff",
 };
 
-const listWrap: React.CSSProperties = {
+/** ===== 吸附滚动参数 ===== */
+const ITEM_H = 52;
+const VIEW_H = 260; // 5 格显示（52*5=260）
+const PAD = (VIEW_H - ITEM_H) / 2; // 上下留白让第一项也能对齐中线
+
+const wheelWrap: React.CSSProperties = {
   marginTop: 10,
   borderRadius: 14,
   border: "1px solid #e6e6e6",
   background: "#fafafa",
   overflow: "hidden",
+  position: "relative",
 };
 
-const list: React.CSSProperties = {
-  maxHeight: 260,
+const wheel: React.CSSProperties = {
+  height: VIEW_H,
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
+  scrollSnapType: "y mandatory",
+  paddingTop: PAD,
+  paddingBottom: PAD,
 };
 
 const rowItem: React.CSSProperties = {
+  height: ITEM_H,
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
   gap: 10,
-  padding: "12px 12px",
-  borderBottom: "1px solid rgba(0,0,0,0.06)",
+  padding: "0 12px",
   cursor: "pointer",
-  background: "transparent",
+  scrollSnapAlign: "center",
+  userSelect: "none",
 };
 
 const name: React.CSSProperties = { fontWeight: 800 };
 const code: React.CSSProperties = { fontSize: 12, opacity: 0.6 };
+
+const centerMask: React.CSSProperties = {
+  pointerEvents: "none",
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: "50%",
+  transform: "translateY(-50%)",
+  height: ITEM_H,
+  borderTop: "1px solid rgba(0,0,0,0.10)",
+  borderBottom: "1px solid rgba(0,0,0,0.10)",
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(2px)",
+};
 
 const tag: React.CSSProperties = {
   padding: "6px 10px",
@@ -117,7 +141,6 @@ function normalize(s: string) {
 }
 
 function isRecommended(code: LocaleCode) {
-  // 先做这 5 个，未来扩语言也能继续加
   return ["zh-Hant", "zh-Hans", "en", "ja", "ko"].includes(code);
 }
 
@@ -138,10 +161,20 @@ function sortRecommendedFirst(options: typeof LOCALE_OPTIONS) {
   return [...rec, ...rest];
 }
 
+/** 吸附滚动：根据 scrollTop 计算当前中心项 */
+function getIndexFromScrollTop(scrollTop: number, len: number) {
+  const idx = Math.round(scrollTop / ITEM_H);
+  return Math.max(0, Math.min(len - 1, idx));
+}
+
+function scrollToCode(el: HTMLDivElement | null, idx: number, smooth: boolean) {
+  if (!el) return;
+  el.scrollTo({ top: idx * ITEM_H, behavior: smooth ? "smooth" : "auto" });
+}
+
 export default function OnboardingClient({ afterPath = "/home" }: Props) {
   const router = useRouter();
 
-  // ✅ 初始化：读取已存（如果没存则使用默认）
   const saved = useMemo(() => getLangConfig(), []);
   const [native, setNative] = useState<LocaleCode>(saved.native);
   const [learning, setLearning] = useState<LocaleCode>(saved.learning);
@@ -152,11 +185,91 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
   const nativeList = useMemo(() => sortRecommendedFirst(filterOptions(qNative)), [qNative]);
   const learningList = useMemo(() => sortRecommendedFirst(filterOptions(qLearning)), [qLearning]);
 
-  // 如果用户之前没选过，仍然允许默认显示，但按下「进入首页」才算真正确认
-  // （你 root page 的逻辑可以用 hasLangConfig 来判断有没有存过）
+  const nativeRef = useRef<HTMLDivElement>(null);
+  const learningRef = useRef<HTMLDivElement>(null);
+
+  // ✅ 若搜索过滤后当前选项不在列表里，就自动改成第一项
   useEffect(() => {
-    // 如果 saved 里没有值，这里也会是 default，不做任何跳转
-  }, []);
+    if (nativeList.length === 0) return;
+    if (!nativeList.some((x) => x.code === native)) setNative(nativeList[0].code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeList]);
+
+  useEffect(() => {
+    if (learningList.length === 0) return;
+    if (!learningList.some((x) => x.code === learning)) setLearning(learningList[0].code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learningList]);
+
+  // ✅ 当选项变化时，把滚轮对齐到该项（含初始化）
+  useEffect(() => {
+    const idx = nativeList.findIndex((x) => x.code === native);
+    if (idx >= 0) scrollToCode(nativeRef.current, idx, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeList.length]);
+
+  useEffect(() => {
+    const idx = learningList.findIndex((x) => x.code === learning);
+    if (idx >= 0) scrollToCode(learningRef.current, idx, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learningList.length]);
+
+  useEffect(() => {
+    const idx = nativeList.findIndex((x) => x.code === native);
+    if (idx >= 0) scrollToCode(nativeRef.current, idx, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [native]);
+
+  useEffect(() => {
+    const idx = learningList.findIndex((x) => x.code === learning);
+    if (idx >= 0) scrollToCode(learningRef.current, idx, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learning]);
+
+  // ✅ 滚动时，更新当前吸附到中心的 code
+  useEffect(() => {
+    const el = nativeRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(() => {
+        const idx = getIndexFromScrollTop(el.scrollTop, nativeList.length);
+        const next = nativeList[idx]?.code;
+        if (next && next !== native) setNative(next);
+      });
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", onScroll as any);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeList, native]);
+
+  useEffect(() => {
+    const el = learningRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(() => {
+        const idx = getIndexFromScrollTop(el.scrollTop, learningList.length);
+        const next = learningList[idx]?.code;
+        if (next && next !== learning) setLearning(next);
+      });
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", onScroll as any);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learningList, learning]);
 
   function onConfirm() {
     setLangConfig({ native, learning });
@@ -164,10 +277,10 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
   }
 
   function onResetToSaved() {
-    setNative(saved.native);
-    setLearning(saved.learning);
     setQNative("");
     setQLearning("");
+    setNative(saved.native);
+    setLearning(saved.learning);
   }
 
   const sameLang = native === learning;
@@ -192,8 +305,8 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
               placeholder="搜索：中文 / English / ja / ko ..."
             />
 
-            <div style={listWrap}>
-              <div style={list}>
+            <div style={wheelWrap}>
+              <div style={wheel} ref={nativeRef}>
                 {nativeList.map((opt) => {
                   const active = opt.code === native;
                   return (
@@ -201,7 +314,7 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
                       key={opt.code}
                       style={{
                         ...rowItem,
-                        background: active ? "rgba(0,0,0,0.06)" : "transparent",
+                        opacity: active ? 1 : 0.55,
                       }}
                       onClick={() => setNative(opt.code)}
                     >
@@ -215,6 +328,7 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
                   );
                 })}
               </div>
+              <div style={centerMask} />
             </div>
           </div>
 
@@ -229,8 +343,8 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
               placeholder="搜索：English / 日本語 / 한국어 ..."
             />
 
-            <div style={listWrap}>
-              <div style={list}>
+            <div style={wheelWrap}>
+              <div style={wheel} ref={learningRef}>
                 {learningList.map((opt) => {
                   const active = opt.code === learning;
                   return (
@@ -238,7 +352,7 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
                       key={opt.code}
                       style={{
                         ...rowItem,
-                        background: active ? "rgba(0,0,0,0.06)" : "transparent",
+                        opacity: active ? 1 : 0.55,
                       }}
                       onClick={() => setLearning(opt.code)}
                     >
@@ -252,6 +366,7 @@ export default function OnboardingClient({ afterPath = "/home" }: Props) {
                   );
                 })}
               </div>
+              <div style={centerMask} />
             </div>
           </div>
         </div>
