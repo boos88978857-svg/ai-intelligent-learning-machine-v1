@@ -65,6 +65,7 @@ const wheelWrap: React.CSSProperties = {
   border: "1px solid #e6e6e6",
   background: "#fafafa",
   overflow: "hidden",
+  touchAction: "pan-y", // ✅ 关键：允许垂直滑动
 };
 
 const wheel: React.CSSProperties = {
@@ -72,6 +73,7 @@ const wheel: React.CSSProperties = {
   overflowY: "auto",
   scrollSnapType: "y mandatory",
   WebkitOverflowScrolling: "touch",
+  overscrollBehavior: "contain",
 };
 
 const item: React.CSSProperties = {
@@ -86,7 +88,6 @@ const item: React.CSSProperties = {
 };
 
 const centerMask: React.CSSProperties = {
-  pointerEvents: "none",
   position: "absolute",
   left: 0,
   right: 0,
@@ -95,8 +96,10 @@ const centerMask: React.CSSProperties = {
   height: 44,
   borderTop: "1px solid rgba(0,0,0,0.08)",
   borderBottom: "1px solid rgba(0,0,0,0.08)",
-  background: "rgba(255,255,255,0.45)",
+  background: "rgba(255,255,255,0.4)",
   backdropFilter: "blur(2px)",
+  zIndex: 2,
+  pointerEvents: "none", // ✅ 只能当视觉层
 };
 
 const footer: React.CSSProperties = {
