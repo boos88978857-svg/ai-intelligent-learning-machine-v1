@@ -2,17 +2,20 @@
 "use client";
 
 export type LocaleCode =
-  | "en"          // English
-  | "zh-Hant"     // 中文（繁體）
-  | "zh-Hans"     // 中文（简体）
-  | "es"          // Español
-  | "fr"          // Français
-  | "de"          // Deutsch
-  | "ja"          // 日本語
-  | "ko"          // 한국어
-  | "pt"          // Português
-  | "it"          // Italiano
-  | "ru";         // Русский
+  | "zh-TW"
+  | "zh-CN"
+  | "en-US"
+  | "en-GB"
+  | "es-ES"
+  | "es-MX"
+  | "fr-FR"
+  | "de-DE"
+  | "ja-JP"
+  | "ko-KR"
+  | "pt-PT"
+  | "pt-BR"
+  | "it-IT"
+  | "ru-RU";
 
 export type LangConfig = {
   native: LocaleCode;   // 母语
@@ -21,26 +24,38 @@ export type LangConfig = {
 
 const STORAGE_KEY = "langConfig.v1";
 
-const DEFAULT_CONFIG: LangConfig = {
-  native: "zh-Hant",
-  learning: "en",
+export const DEFAULT_CONFIG: LangConfig = {
+  native: "zh-TW",
+  learning: "en-US",
 };
 
+export const LOCALE_OPTIONS: { code: LocaleCode; label: string }[] = [
+  { code: "en-US", label: "English 🇺🇸" },
+  { code: "en-GB", label: "English 🇬🇧" },
+
+  { code: "zh-CN", label: "中文（简体）🇨🇳" },
+  { code: "zh-TW", label: "中文（繁體）🇹🇼" },
+
+  { code: "es-ES", label: "Español 🇪🇸" },
+  { code: "es-MX", label: "Español 🇲🇽" },
+
+  { code: "fr-FR", label: "Français 🇫🇷" },
+  { code: "de-DE", label: "Deutsch 🇩🇪" },
+
+  { code: "ja-JP", label: "日本語 🇯🇵" },
+  { code: "ko-KR", label: "한국어 🇰🇷" },
+
+  { code: "pt-PT", label: "Português 🇵🇹" },
+  { code: "pt-BR", label: "Português 🇧🇷" },
+
+  { code: "it-IT", label: "Italiano 🇮🇹" },
+  { code: "ru-RU", label: "Русский 🇷🇺" },
+];
+
+const ALL_CODES = new Set<LocaleCode>(LOCALE_OPTIONS.map((x) => x.code));
+
 function isLocaleCode(x: any): x is LocaleCode {
-  const s = String(x);
-  return [
-    "en",
-    "zh-Hant",
-    "zh-Hans",
-    "es",
-    "fr",
-    "de",
-    "ja",
-    "ko",
-    "pt",
-    "it",
-    "ru",
-  ].includes(s);
+  return typeof x === "string" && ALL_CODES.has(x as LocaleCode);
 }
 
 function safeParse(json: string | null): LangConfig | null {
@@ -79,47 +94,7 @@ export function clearLangConfig() {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
-/** 显示名字（含国旗） */
 export function getLocaleLabel(code: LocaleCode): string {
-  switch (code) {
-    case "en":
-      return "English 🇺🇸🇬🇧";
-    case "zh-Hant":
-      return "中文（繁體）🇹🇼";
-    case "zh-Hans":
-      return "中文（简体）🇨🇳";
-    case "es":
-      return "Español 🇪🇸🇲🇽";
-    case "fr":
-      return "Français 🇫🇷";
-    case "de":
-      return "Deutsch 🇩🇪";
-    case "ja":
-      return "日本語 🇯🇵";
-    case "ko":
-      return "한국어 🇰🇷";
-    case "pt":
-      return "Português 🇵🇹🇧🇷";
-    case "it":
-      return "Italiano 🇮🇹";
-    case "ru":
-      return "Русский 🇷🇺";
-    default:
-      return code;
-  }
+  const found = LOCALE_OPTIONS.find((x) => x.code === code);
+  return found?.label ?? String(code);
 }
-
-/** 滚动/选择列表 */
-export const LOCALE_OPTIONS: { code: LocaleCode; label: string }[] = [
-  { code: "en", label: "English 🇺🇸🇬🇧" },
-  { code: "zh-Hant", label: "中文（繁體）🇹🇼" },
-  { code: "zh-Hans", label: "中文（简体）🇨🇳" },
-  { code: "es", label: "Español 🇪🇸🇲🇽" },
-  { code: "fr", label: "Français 🇫🇷" },
-  { code: "de", label: "Deutsch 🇩🇪" },
-  { code: "ja", label: "日本語 🇯🇵" },
-  { code: "ko", label: "한국어 🇰🇷" },
-  { code: "pt", label: "Português 🇵🇹🇧🇷" },
-  { code: "it", label: "Italiano 🇮🇹" },
-  { code: "ru", label: "Русский 🇷🇺" },
-];
