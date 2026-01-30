@@ -65,15 +65,15 @@ const wheelWrap: React.CSSProperties = {
   border: "1px solid #e6e6e6",
   background: "#fafafa",
   overflow: "hidden",
-  touchAction: "pan-y", // ✅ 关键：允许垂直滑动
 };
 
 const wheel: React.CSSProperties = {
   height: 240,
-  overflowY: "scroll", // ✅ iOS 更稳
+  overflowY: "auto",
   scrollSnapType: "y mandatory",
   WebkitOverflowScrolling: "touch",
-  touchAction: "pan-y",
+  overscrollBehavior: "contain", // ✅ 避免滚到页面
+  touchAction: "pan-y", // ✅ 让手势优先给纵向滚动
 };
 
 const item: React.CSSProperties = {
@@ -88,6 +88,7 @@ const item: React.CSSProperties = {
 };
 
 const centerMask: React.CSSProperties = {
+  pointerEvents: "none", // ✅ 关键：不挡触控
   position: "absolute",
   left: 0,
   right: 0,
@@ -96,13 +97,12 @@ const centerMask: React.CSSProperties = {
   height: 44,
   borderTop: "1px solid rgba(0,0,0,0.08)",
   borderBottom: "1px solid rgba(0,0,0,0.08)",
-  background: "rgba(255,255,255,0.4)",
+  background: "rgba(255,255,255,0.45)",
   backdropFilter: "blur(2px)",
-  zIndex: 2,
-  pointerEvents: "none", // ✅ 只能当视觉层
+  zIndex: 1,
 };
 
-const footer: React.CSSProperties = {
+const footerBar: React.CSSProperties = {
   marginTop: 14,
   display: "flex",
   gap: 10,
@@ -135,14 +135,7 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
-function useWheel(
-  initial: LocaleCode
-): {
-  ref: React.RefObject<HTMLDivElement>;
-  value: LocaleCode;
-  setValue: (v: LocaleCode) => void;
-  scrollTo: (v: LocaleCode) => void;
-} {
+function useWheel(initial: LocaleCode) {
   const ref = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState<LocaleCode>(initial);
 
@@ -153,13 +146,6 @@ function useWheel(
     return idx >= 0 ? idx : 0;
   }
 
-  function snapToNearest(el: HTMLDivElement) {
-    const idx = Math.round(el.scrollTop / 44);
-    const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-    el.scrollTo({ top: clamped * 44, behavior: "smooth" });
-    setValue(codes[clamped]);
-  }
-
   function scrollTo(v: LocaleCode) {
     const el = ref.current;
     if (!el) return;
@@ -168,11 +154,17 @@ function useWheel(
   }
 
   useEffect(() => {
+    // 初始化对齐
     const el = ref.current;
     if (!el) return;
+    const idx = indexOf(value);
+    el.scrollTo({ top: idx * 44, behavior: "auto" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    // 初始化对齐
-    el.scrollTo({ top: indexOf(value) * 44, behavior: "auto" });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
     let raf = 0;
 
@@ -181,51 +173,27 @@ function useWheel(
       raf = window.requestAnimationFrame(() => {
         const idx = Math.round(el.scrollTop / 44);
         const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-        setValue(codes[clamped]);
+        const next = codes[clamped];
+        setValue(next);
       });
     };
 
-    // ✅ 关键：接管 iOS 触控滚动，避免滚到整页
-    let startY = 0;
-    let startTop = 0;
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      startY = e.touches[0].clientY;
-      startTop = el.scrollTop;
-    };
-
+    // ✅ 保险：把触控滚动尽量留在 wheel 内
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      // ✅ 阻止页面滚动（需要 passive:false）
-      e.preventDefault();
-      const y = e.touches[0].clientY;
-      const dy = startY - y;
-      el.scrollTop = startTop + dy;
-    };
-
-    const onTouchEnd = () => {
-      snapToNearest(el);
+      e.stopPropagation();
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd, { passive: true });
-    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
 
     return () => {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
-      el.removeEventListener("touchstart", onTouchStart as any);
       el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-      el.removeEventListener("touchcancel", onTouchEnd as any);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codes]);
 
-  return { ref, value, setValue, scrollTo };
+  return { ref, value, scrollTo };
 }
 
 export default function LanguageGate({ afterPath = "/practice" }: Props) {
@@ -250,95 +218,72 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
       <div style={card}>
         <div style={title}>选择语言</div>
         <div style={sub}>
-          先选<strong>母语</strong>，再选<strong>学习语言</strong>。选完后就进入首页，之后也能在设定里随时更改。
+          先选<strong>母语</strong>，再选<strong>学习语言</strong>。选完后进入首页，之后也能在设定里随时更改。
         </div>
 
         <div style={row}>
           {/* 母语 */}
           <div style={col}>
             <div style={label}>母语</div>
-            <div style={wheelWrap}>
-  <div
-    style={{
-      ...wheel,
-      position: "relative",
-      zIndex: 2, // ✅ wheel 在最上层
-    }}
-    ref={nativeWheel.ref}
-  >
-    {LOCALE_OPTIONS.map((opt) => {
-      const active = opt.code === nativeWheel.value;
-      return (
-        <div
-          key={opt.code}
-          style={{
-            ...item,
-            fontWeight: active ? 900 : 500,
-            opacity: active ? 1 : 0.55,
-          }}
-          onClick={() => nativeWheel.scrollTo(opt.code)}
-        >
-          {opt.label}
-        </div>
-      );
-    })}
-  </div>
 
-  {/* 视觉用，不拦触控 */}
-  <div
-    style={{
-      ...centerMask,
-      pointerEvents: "none",
-      zIndex: 1,
-    }}
-  />
-</div>
+            <div style={wheelWrap}>
+              <div
+                style={{ ...wheel, position: "relative", zIndex: 2 }}
+                ref={nativeWheel.ref}
+              >
+                {LOCALE_OPTIONS.map((opt) => {
+                  const active = opt.code === nativeWheel.value;
+                  return (
+                    <div
+                      key={opt.code}
+                      style={{
+                        ...item,
+                        fontWeight: active ? 900 : 500,
+                        opacity: active ? 1 : 0.55,
+                      }}
+                      onClick={() => nativeWheel.scrollTo(opt.code)}
+                    >
+                      {opt.label}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={centerMask} />
+            </div>
           </div>
 
           {/* 学习语言 */}
           <div style={col}>
             <div style={label}>学习语言</div>
-            <div style={wheelWrap}>
-              <div style={wheelWrap}>
-  <div
-    style={{
-      ...wheel,
-      position: "relative",
-      zIndex: 2, // ✅ wheel 在最上层
-    }}
-    ref={nativeWheel.ref}
-  >
-    {LOCALE_OPTIONS.map((opt) => {
-      const active = opt.code === nativeWheel.value;
-      return (
-        <div
-          key={opt.code}
-          style={{
-            ...item,
-            fontWeight: active ? 900 : 500,
-            opacity: active ? 1 : 0.55,
-          }}
-          onClick={() => nativeWheel.scrollTo(opt.code)}
-        >
-          {opt.label}
-        </div>
-      );
-    })}
-  </div>
 
-  {/* 视觉用，不拦触控 */}
-  <div
-    style={{
-      ...centerMask,
-      pointerEvents: "none",
-      zIndex: 1,
-    }}
-  />
-</div>
+            <div style={wheelWrap}>
+              <div
+                style={{ ...wheel, position: "relative", zIndex: 2 }}
+                ref={learningWheel.ref}
+              >
+                {LOCALE_OPTIONS.map((opt) => {
+                  const active = opt.code === learningWheel.value;
+                  return (
+                    <div
+                      key={opt.code}
+                      style={{
+                        ...item,
+                        fontWeight: active ? 900 : 500,
+                        opacity: active ? 1 : 0.55,
+                      }}
+                      onClick={() => learningWheel.scrollTo(opt.code)}
+                    >
+                      {opt.label}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={centerMask} />
+            </div>
           </div>
         </div>
 
-        <div style={footer}>
+        <div style={footerBar}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={pill}>母语：{getLocaleLabel(nativeWheel.value)}</span>
             <span style={pill}>学习：{getLocaleLabel(learningWheel.value)}</span>
