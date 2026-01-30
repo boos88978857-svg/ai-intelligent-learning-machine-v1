@@ -268,3 +268,33 @@ export default function OnboardingClient() {
             </div>
           </div>
         )}
+
+        {/* ===== 底部：当前选择 + 按钮 ===== */}
+        <div style={footer}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={pill}>母语：{getLocaleLabel(nativeWheel.value)}</span>
+            <span style={pill}>学习：{getLocaleLabel(learningWheel.value)}</span>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {step === 2 ? (
+              <button style={btn} onClick={goBack}>
+                ← 上一步
+              </button>
+            ) : null}
+
+            {step === 1 ? (
+              <button style={btnPrimary} onClick={goNext}>
+                下一步 →
+              </button>
+            ) : (
+              <button style={btnPrimary} onClick={onConfirm}>
+                完成并进入首页 →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
