@@ -70,10 +70,10 @@ const wheelWrap: React.CSSProperties = {
 
 const wheel: React.CSSProperties = {
   height: 240,
-  overflowY: "auto",
+  overflowY: "scroll", // ✅ iOS 更稳
   scrollSnapType: "y mandatory",
   WebkitOverflowScrolling: "touch",
-  overscrollBehavior: "contain",
+  touchAction: "pan-y",
 };
 
 const item: React.CSSProperties = {
@@ -153,6 +153,13 @@ function useWheel(
     return idx >= 0 ? idx : 0;
   }
 
+  function snapToNearest(el: HTMLDivElement) {
+    const idx = Math.round(el.scrollTop / 44);
+    const clamped = Math.max(0, Math.min(codes.length - 1, idx));
+    el.scrollTo({ top: clamped * 44, behavior: "smooth" });
+    setValue(codes[clamped]);
+  }
+
   function scrollTo(v: LocaleCode) {
     const el = ref.current;
     if (!el) return;
@@ -161,17 +168,11 @@ function useWheel(
   }
 
   useEffect(() => {
-    // 初始化对齐
     const el = ref.current;
     if (!el) return;
-    const idx = indexOf(value);
-    el.scrollTo({ top: idx * 44, behavior: "auto" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    // 初始化对齐
+    el.scrollTo({ top: indexOf(value) * 44, behavior: "auto" });
 
     let raf = 0;
 
@@ -180,16 +181,48 @@ function useWheel(
       raf = window.requestAnimationFrame(() => {
         const idx = Math.round(el.scrollTop / 44);
         const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-        const next = codes[clamped];
-        setValue(next);
+        setValue(codes[clamped]);
       });
     };
 
+    // ✅ 关键：接管 iOS 触控滚动，避免滚到整页
+    let startY = 0;
+    let startTop = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+      startTop = el.scrollTop;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      // ✅ 阻止页面滚动（需要 passive:false）
+      e.preventDefault();
+      const y = e.touches[0].clientY;
+      const dy = startY - y;
+      el.scrollTop = startTop + dy;
+    };
+
+    const onTouchEnd = () => {
+      snapToNearest(el);
+    };
+
     el.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
     return () => {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
+      el.removeEventListener("touchstart", onTouchStart as any);
+      el.removeEventListener("touchmove", onTouchMove as any);
+      el.removeEventListener("touchend", onTouchEnd as any);
+      el.removeEventListener("touchcancel", onTouchEnd as any);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codes]);
 
   return { ref, value, setValue, scrollTo };
