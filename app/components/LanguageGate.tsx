@@ -13,9 +13,14 @@ import {
 } from "../../lib/lang-config";
 
 type Props = {
-  /** 选完后要跳到哪里（默认 /practice） */
+  /** 选完后要跳到哪里（默认 /home） */
   afterPath?: string;
 };
+
+const ITEM_H = 44;
+const WHEEL_H = 240;
+// 让“中间选中线”对齐：上/下补空白（使第一个、最后一个也能滚到中间）
+const SPACER = Math.floor((WHEEL_H - ITEM_H) / 2);
 
 const wrap: React.CSSProperties = {
   maxWidth: 980,
@@ -68,16 +73,16 @@ const wheelWrap: React.CSSProperties = {
 };
 
 const wheel: React.CSSProperties = {
-  height: 240,
+  height: WHEEL_H,
   overflowY: "auto",
   scrollSnapType: "y mandatory",
   WebkitOverflowScrolling: "touch",
-  overscrollBehavior: "contain", // ✅ 避免滚到页面
-  touchAction: "pan-y", // ✅ 让手势优先给纵向滚动
+  overscrollBehavior: "contain",
+  touchAction: "pan-y",
 };
 
 const item: React.CSSProperties = {
-  height: 44,
+  height: ITEM_H,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -88,21 +93,20 @@ const item: React.CSSProperties = {
 };
 
 const centerMask: React.CSSProperties = {
-  pointerEvents: "none", // ✅ 关键：不挡触控
+  pointerEvents: "none",
   position: "absolute",
   left: 0,
   right: 0,
   top: "50%",
   transform: "translateY(-50%)",
-  height: 44,
+  height: ITEM_H,
   borderTop: "1px solid rgba(0,0,0,0.08)",
   borderBottom: "1px solid rgba(0,0,0,0.08)",
-  background: "rgba(255,255,255,0.45)",
+  background: "rgba(255,255,255,0.55)",
   backdropFilter: "blur(2px)",
-  zIndex: 1,
 };
 
-const footerBar: React.CSSProperties = {
+const footer: React.CSSProperties = {
   marginTop: 14,
   display: "flex",
   gap: 10,
@@ -135,30 +139,33 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 function useWheel(initial: LocaleCode) {
   const ref = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState<LocaleCode>(initial);
 
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
 
-  function indexOf(v: LocaleCode) {
+  const indexOf = (v: LocaleCode) => {
     const idx = codes.indexOf(v);
     return idx >= 0 ? idx : 0;
-  }
+  };
 
-  function scrollTo(v: LocaleCode) {
+  const scrollToValue = (v: LocaleCode, behavior: ScrollBehavior = "smooth") => {
     const el = ref.current;
     if (!el) return;
     const idx = indexOf(v);
-    el.scrollTo({ top: idx * 44, behavior: "smooth" });
-  }
+    // ✅ 关键：点选时也要立即更新 value（就算滚不动也能切换）
+    setValue(v);
+    el.scrollTo({ top: SPACER + idx * ITEM_H, behavior });
+  };
 
   useEffect(() => {
-    // 初始化对齐
-    const el = ref.current;
-    if (!el) return;
-    const idx = indexOf(value);
-    el.scrollTo({ top: idx * 44, behavior: "auto" });
+    // 初次进来对齐到中间线
+    scrollToValue(value, "auto");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -171,32 +178,24 @@ function useWheel(initial: LocaleCode) {
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = window.requestAnimationFrame(() => {
-        const idx = Math.round(el.scrollTop / 44);
-        const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-        const next = codes[clamped];
+        const raw = (el.scrollTop - SPACER) / ITEM_H;
+        const idx = clamp(Math.round(raw), 0, codes.length - 1);
+        const next = codes[idx];
         setValue(next);
       });
     };
 
-    // ✅ 保险：把触控滚动尽量留在 wheel 内
-    const onTouchMove = (e: TouchEvent) => {
-      e.stopPropagation();
-    };
-
     el.addEventListener("scroll", onScroll, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: true });
-
     return () => {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
     };
   }, [codes]);
 
-  return { ref, value, scrollTo };
+  return { ref, value, scrollToValue, setValue };
 }
 
-export default function LanguageGate({ afterPath = "/practice" }: Props) {
+export default function LanguageGate({ afterPath = "/home" }: Props) {
   const router = useRouter();
 
   const saved = useMemo(() => getLangConfig(), []);
@@ -209,8 +208,8 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
   }
 
   function onResetToSaved() {
-    nativeWheel.scrollTo(saved.native);
-    learningWheel.scrollTo(saved.learning);
+    nativeWheel.scrollToValue(saved.native);
+    learningWheel.scrollToValue(saved.learning);
   }
 
   return (
@@ -225,12 +224,9 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
           {/* 母语 */}
           <div style={col}>
             <div style={label}>母语</div>
-
             <div style={wheelWrap}>
-              <div
-                style={{ ...wheel, position: "relative", zIndex: 2 }}
-                ref={nativeWheel.ref}
-              >
+              <div style={wheel} ref={nativeWheel.ref}>
+                <div style={{ height: SPACER }} />
                 {LOCALE_OPTIONS.map((opt) => {
                   const active = opt.code === nativeWheel.value;
                   return (
@@ -241,12 +237,13 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
                         fontWeight: active ? 900 : 500,
                         opacity: active ? 1 : 0.55,
                       }}
-                      onClick={() => nativeWheel.scrollTo(opt.code)}
+                      onClick={() => nativeWheel.scrollToValue(opt.code)}
                     >
                       {opt.label}
                     </div>
                   );
                 })}
+                <div style={{ height: SPACER }} />
               </div>
               <div style={centerMask} />
             </div>
@@ -255,12 +252,9 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
           {/* 学习语言 */}
           <div style={col}>
             <div style={label}>学习语言</div>
-
             <div style={wheelWrap}>
-              <div
-                style={{ ...wheel, position: "relative", zIndex: 2 }}
-                ref={learningWheel.ref}
-              >
+              <div style={wheel} ref={learningWheel.ref}>
+                <div style={{ height: SPACER }} />
                 {LOCALE_OPTIONS.map((opt) => {
                   const active = opt.code === learningWheel.value;
                   return (
@@ -271,19 +265,20 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
                         fontWeight: active ? 900 : 500,
                         opacity: active ? 1 : 0.55,
                       }}
-                      onClick={() => learningWheel.scrollTo(opt.code)}
+                      onClick={() => learningWheel.scrollToValue(opt.code)}
                     >
                       {opt.label}
                     </div>
                   );
                 })}
+                <div style={{ height: SPACER }} />
               </div>
               <div style={centerMask} />
             </div>
           </div>
         </div>
 
-        <div style={footerBar}>
+        <div style={footer}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={pill}>母语：{getLocaleLabel(nativeWheel.value)}</span>
             <span style={pill}>学习：{getLocaleLabel(learningWheel.value)}</span>
@@ -294,7 +289,7 @@ export default function LanguageGate({ afterPath = "/practice" }: Props) {
               还原
             </button>
             <button style={btnPrimary} onClick={onConfirm}>
-              进入首页 →
+              下一步 →
             </button>
           </div>
         </div>
