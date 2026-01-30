@@ -1,4 +1,3 @@
-// app/components/LanguageGate.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -13,13 +12,10 @@ import {
 } from "../../lib/lang-config";
 
 type Props = {
-  /** 选完后要跳到哪里（默认 /home） */
   afterPath?: string;
 };
 
 const ITEM_H = 44;
-const WHEEL_H = 240;
-const PAD = WHEEL_H / 2 - ITEM_H / 2; // 98
 
 const wrap: React.CSSProperties = { maxWidth: 980, margin: "0 auto", padding: "18px 14px" };
 
@@ -53,16 +49,13 @@ const wheelWrap: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const wheel: React.CSSProperties = {
-  height: WHEEL_H,
+const wheelBase: React.CSSProperties = {
+  height: 240, // 视觉高度固定即可，但 padding 不要写死
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
   scrollSnapType: "y mandatory",
-  paddingTop: PAD,
-  paddingBottom: PAD,
 
-  // ✅ 关键：避免手机把手势传给整页
-  overscrollBehaviorY: "contain",
+  // ✅ iOS 手势：尽量让滚动留在容器里
   touchAction: "pan-y",
 };
 
@@ -128,6 +121,9 @@ function useWheel(initial: LocaleCode) {
   const ref = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState<LocaleCode>(initial);
 
+  // ✅ 动态 padding（关键修复：避免到底选不到）
+  const [padPx, setPadPx] = useState(98);
+
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
 
   const indexOf = (v: LocaleCode) => {
@@ -135,23 +131,38 @@ function useWheel(initial: LocaleCode) {
     return idx >= 0 ? idx : 0;
   };
 
-  const scrollTo = (v: LocaleCode) => {
+  const scrollTo = (v: LocaleCode, behavior: ScrollBehavior = "smooth") => {
     const el = ref.current;
     if (!el) return;
     const idx = indexOf(v);
-    el.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
+    el.scrollTo({ top: idx * ITEM_H, behavior });
   };
 
-  // ✅ 初始化对齐
+  // ✅ 计算真实 pad：wheel 实际高度/2 - item/2
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const idx = indexOf(value);
-    el.scrollTo({ top: idx * ITEM_H, behavior: "auto" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const calc = () => {
+      const h = el.clientHeight || 240;
+      const pad = Math.max(0, Math.round(h / 2 - ITEM_H / 2));
+      setPadPx(pad);
+    };
+
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
   }, []);
 
-  // ✅ scrollTop → 选中项（注意 padding）
+  // ✅ 初始化对齐到当前值
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    scrollTo(value, "auto");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [padPx]); // pad 变化后重新对齐一次
+
+  // ✅ scrollTop → 选中项（注意：padding 不参与 scrollTop 计算）
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -160,21 +171,26 @@ function useWheel(initial: LocaleCode) {
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = window.requestAnimationFrame(() => {
-        const raw = el.scrollTop; // 这里本来就不含 padding 的偏移（因为 padding 只是内容区域）
-        const idx = Math.round(raw / ITEM_H);
+        const idx = Math.round(el.scrollTop / ITEM_H);
         const clamped = Math.max(0, Math.min(codes.length - 1, idx));
         setValue(codes[clamped]);
       });
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
     };
   }, [codes]);
 
-  return { ref, value, setValue, scrollTo };
+  // ✅ iOS：避免把 touchmove 传给整页（让 wheel 优先吃到）
+  const onTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
+  return { ref, value, setValue, scrollTo, padPx, onTouchMove };
 }
 
 export default function LanguageGate({ afterPath = "/home" }: Props) {
@@ -194,12 +210,24 @@ export default function LanguageGate({ afterPath = "/home" }: Props) {
     learningWheel.scrollTo(saved.learning);
   }
 
+  const wheelStyleNative: React.CSSProperties = {
+    ...wheelBase,
+    paddingTop: nativeWheel.padPx,
+    paddingBottom: nativeWheel.padPx,
+  };
+
+  const wheelStyleLearning: React.CSSProperties = {
+    ...wheelBase,
+    paddingTop: learningWheel.padPx,
+    paddingBottom: learningWheel.padPx,
+  };
+
   return (
     <main style={wrap}>
       <div style={card}>
-        <div style={title}>开始前先选语言</div>
+        <div style={title}>选择你的母语</div>
         <div style={sub}>
-          先选<strong>母语</strong>（决定界面与解释语言），再选<strong>学习语言</strong>。选完后进入首页，之后也能在设定里随时更改。
+          先选<strong>母语</strong>（界面与解释语言），再选<strong>学习语言</strong>。之后可在设定里随时更改。
         </div>
 
         <div style={row}>
@@ -207,7 +235,7 @@ export default function LanguageGate({ afterPath = "/home" }: Props) {
           <div style={col}>
             <div style={label}>母语</div>
             <div style={wheelWrap}>
-              <div style={wheel} ref={nativeWheel.ref}>
+              <div style={wheelStyleNative} ref={nativeWheel.ref} onTouchMove={nativeWheel.onTouchMove}>
                 {LOCALE_OPTIONS.map((opt) => {
                   const active = opt.code === nativeWheel.value;
                   return (
@@ -233,7 +261,7 @@ export default function LanguageGate({ afterPath = "/home" }: Props) {
           <div style={col}>
             <div style={label}>学习语言</div>
             <div style={wheelWrap}>
-              <div style={wheel} ref={learningWheel.ref}>
+              <div style={wheelStyleLearning} ref={learningWheel.ref} onTouchMove={learningWheel.onTouchMove}>
                 {LOCALE_OPTIONS.map((opt) => {
                   const active = opt.code === learningWheel.value;
                   return (
