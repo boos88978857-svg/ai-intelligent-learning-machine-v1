@@ -1,18 +1,17 @@
 // app/page.tsx
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getLangConfig } from "../lib/lang-config";
+import { hasLangConfig } from "../lib/lang-config";
 
 export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const cfg = getLangConfig();
-    router.replace(cfg.hasChosen ? "/home" : "/onboarding");
+    // ✅ 有存过语言配置 -> 进 /home
+    // ✅ 没存过 -> 去 /onboarding
+    router.replace(hasLangConfig() ? "/home" : "/onboarding");
   }, [router]);
 
   return <main style={{ padding: 20, opacity: 0.6 }}>Loading…</main>;
