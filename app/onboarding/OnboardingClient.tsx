@@ -57,6 +57,15 @@ const pill: React.CSSProperties = {
   opacity: 0.95,
 };
 
+const footer: React.CSSProperties = {
+  marginTop: 14,
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "space-between",
+};
+
 const btn: React.CSSProperties = {
   padding: "10px 12px",
   borderRadius: 12,
