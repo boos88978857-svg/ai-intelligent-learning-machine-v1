@@ -19,14 +19,9 @@ type Props = {
 
 const ITEM_H = 44;
 const WHEEL_H = 240;
-// 让“中间选中线”对齐：上/下补空白（使第一个、最后一个也能滚到中间）
-const SPACER = Math.floor((WHEEL_H - ITEM_H) / 2);
+const PAD = WHEEL_H / 2 - ITEM_H / 2; // 98
 
-const wrap: React.CSSProperties = {
-  maxWidth: 980,
-  margin: "0 auto",
-  padding: "18px 14px",
-};
+const wrap: React.CSSProperties = { maxWidth: 980, margin: "0 auto", padding: "18px 14px" };
 
 const card: React.CSSProperties = {
   background: "#fff",
@@ -35,11 +30,7 @@ const card: React.CSSProperties = {
   padding: 16,
 };
 
-const title: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 900,
-  marginBottom: 10,
-};
+const title: React.CSSProperties = { fontSize: 28, fontWeight: 900, marginBottom: 10 };
 
 const sub: React.CSSProperties = {
   opacity: 0.75,
@@ -48,21 +39,11 @@ const sub: React.CSSProperties = {
   marginBottom: 14,
 };
 
-const row: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
-};
+const row: React.CSSProperties = { display: "flex", gap: 12, flexWrap: "wrap" };
 
-const col: React.CSSProperties = {
-  flex: "1 1 280px",
-  minWidth: 260,
-};
+const col: React.CSSProperties = { flex: "1 1 280px", minWidth: 260 };
 
-const label: React.CSSProperties = {
-  fontWeight: 900,
-  marginBottom: 8,
-};
+const label: React.CSSProperties = { fontWeight: 900, marginBottom: 8 };
 
 const wheelWrap: React.CSSProperties = {
   position: "relative",
@@ -75,9 +56,13 @@ const wheelWrap: React.CSSProperties = {
 const wheel: React.CSSProperties = {
   height: WHEEL_H,
   overflowY: "auto",
-  scrollSnapType: "y mandatory",
   WebkitOverflowScrolling: "touch",
-  overscrollBehavior: "contain",
+  scrollSnapType: "y mandatory",
+  paddingTop: PAD,
+  paddingBottom: PAD,
+
+  // ✅ 关键：避免手机把手势传给整页
+  overscrollBehaviorY: "contain",
   touchAction: "pan-y",
 };
 
@@ -102,7 +87,7 @@ const centerMask: React.CSSProperties = {
   height: ITEM_H,
   borderTop: "1px solid rgba(0,0,0,0.08)",
   borderBottom: "1px solid rgba(0,0,0,0.08)",
-  background: "rgba(255,255,255,0.55)",
+  background: "rgba(255,255,255,0.45)",
   backdropFilter: "blur(2px)",
 };
 
@@ -139,10 +124,6 @@ const btnPrimary: React.CSSProperties = {
   color: "#fff",
 };
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
 function useWheel(initial: LocaleCode) {
   const ref = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState<LocaleCode>(initial);
@@ -154,34 +135,35 @@ function useWheel(initial: LocaleCode) {
     return idx >= 0 ? idx : 0;
   };
 
-  const scrollToValue = (v: LocaleCode, behavior: ScrollBehavior = "smooth") => {
+  const scrollTo = (v: LocaleCode) => {
     const el = ref.current;
     if (!el) return;
     const idx = indexOf(v);
-    // ✅ 关键：点选时也要立即更新 value（就算滚不动也能切换）
-    setValue(v);
-    el.scrollTo({ top: SPACER + idx * ITEM_H, behavior });
+    el.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
   };
 
+  // ✅ 初始化对齐
   useEffect(() => {
-    // 初次进来对齐到中间线
-    scrollToValue(value, "auto");
+    const el = ref.current;
+    if (!el) return;
+    const idx = indexOf(value);
+    el.scrollTo({ top: idx * ITEM_H, behavior: "auto" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ scrollTop → 选中项（注意 padding）
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
     let raf = 0;
-
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = window.requestAnimationFrame(() => {
-        const raw = (el.scrollTop - SPACER) / ITEM_H;
-        const idx = clamp(Math.round(raw), 0, codes.length - 1);
-        const next = codes[idx];
-        setValue(next);
+        const raw = el.scrollTop; // 这里本来就不含 padding 的偏移（因为 padding 只是内容区域）
+        const idx = Math.round(raw / ITEM_H);
+        const clamped = Math.max(0, Math.min(codes.length - 1, idx));
+        setValue(codes[clamped]);
       });
     };
 
@@ -192,7 +174,7 @@ function useWheel(initial: LocaleCode) {
     };
   }, [codes]);
 
-  return { ref, value, scrollToValue, setValue };
+  return { ref, value, setValue, scrollTo };
 }
 
 export default function LanguageGate({ afterPath = "/home" }: Props) {
@@ -208,16 +190,16 @@ export default function LanguageGate({ afterPath = "/home" }: Props) {
   }
 
   function onResetToSaved() {
-    nativeWheel.scrollToValue(saved.native);
-    learningWheel.scrollToValue(saved.learning);
+    nativeWheel.scrollTo(saved.native);
+    learningWheel.scrollTo(saved.learning);
   }
 
   return (
     <main style={wrap}>
       <div style={card}>
-        <div style={title}>选择语言</div>
+        <div style={title}>开始前先选语言</div>
         <div style={sub}>
-          先选<strong>母语</strong>，再选<strong>学习语言</strong>。选完后进入首页，之后也能在设定里随时更改。
+          先选<strong>母语</strong>（决定界面与解释语言），再选<strong>学习语言</strong>。选完后进入首页，之后也能在设定里随时更改。
         </div>
 
         <div style={row}>
@@ -226,24 +208,22 @@ export default function LanguageGate({ afterPath = "/home" }: Props) {
             <div style={label}>母语</div>
             <div style={wheelWrap}>
               <div style={wheel} ref={nativeWheel.ref}>
-                <div style={{ height: SPACER }} />
                 {LOCALE_OPTIONS.map((opt) => {
                   const active = opt.code === nativeWheel.value;
                   return (
                     <div
-                      key={opt.code}
+                      key={`native-${opt.code}`}
                       style={{
                         ...item,
                         fontWeight: active ? 900 : 500,
                         opacity: active ? 1 : 0.55,
                       }}
-                      onClick={() => nativeWheel.scrollToValue(opt.code)}
+                      onClick={() => nativeWheel.scrollTo(opt.code)}
                     >
                       {opt.label}
                     </div>
                   );
                 })}
-                <div style={{ height: SPACER }} />
               </div>
               <div style={centerMask} />
             </div>
@@ -254,24 +234,22 @@ export default function LanguageGate({ afterPath = "/home" }: Props) {
             <div style={label}>学习语言</div>
             <div style={wheelWrap}>
               <div style={wheel} ref={learningWheel.ref}>
-                <div style={{ height: SPACER }} />
                 {LOCALE_OPTIONS.map((opt) => {
                   const active = opt.code === learningWheel.value;
                   return (
                     <div
-                      key={opt.code}
+                      key={`learn-${opt.code}`}
                       style={{
                         ...item,
                         fontWeight: active ? 900 : 500,
                         opacity: active ? 1 : 0.55,
                       }}
-                      onClick={() => learningWheel.scrollToValue(opt.code)}
+                      onClick={() => learningWheel.scrollTo(opt.code)}
                     >
                       {opt.label}
                     </div>
                   );
                 })}
-                <div style={{ height: SPACER }} />
               </div>
               <div style={centerMask} />
             </div>
