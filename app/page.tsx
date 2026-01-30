@@ -9,8 +9,6 @@ export default function RootPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // ✅ 有存过语言配置 -> 进 /home
-    // ✅ 没存过 -> 去 /onboarding
     router.replace(hasLangConfig() ? "/home" : "/onboarding");
   }, [router]);
 
