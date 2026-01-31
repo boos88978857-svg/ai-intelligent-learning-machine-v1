@@ -183,8 +183,8 @@ function useWheel(initial: LocaleCode) {
 export default function LanguageGate({ afterPath = "/home" }: Props) {
   const router = useRouter();
   const saved = useMemo(() => getLangConfig(), []);
-  const nativeWheel = useWheel(saved.native);
-  const learningWheel = useWheel(saved.learning);
+  const nativeWheel = useWheel((saved?.native ?? "zh-Hant") as any);
+const learningWheel = useWheel((saved?.learning ?? "en") as any);
 
   // ✅ 进入此页：锁住 body 滚动（解决“滑动整个屏幕跟着动”）
   useEffect(() => {
