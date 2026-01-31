@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import LanguagePickerSheet from "../components/LanguagePickerSheet";
 
 import {
+  LOCALE_OPTIONS,
   hasLangConfig,
   getLangConfig,
   setLangConfig,
@@ -90,8 +91,6 @@ export default function OnboardingClient() {
   const saved = useMemo(() => (hasLangConfig() ? getLangConfig() : null), []);
 
   const [openType, setOpenType] = useState<"native" | "learning" | null>(null);
-
-import { LOCALE_OPTIONS } from "../../lib/lang-config";
 
 // ✅ UI 仍然不预选：保持 null
 const [native, setNative] = useState<LocaleCode | null>(null);
