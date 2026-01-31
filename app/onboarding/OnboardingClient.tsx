@@ -126,7 +126,7 @@ const [learningChosen, setLearningChosen] = useState(false);
           <div style={fieldLabel}>母语</div>
           <div style={field} onClick={() => setOpenType("native")}>
             <div style={{ fontWeight: 900 }}>
-              {nativeChosen ? getLocaleLabelWithFlags(native) : "请选择您的母语"}
+              {nativeChosen ? getLocaleLabelWithFlags(native ?? fallbackNative) : "请选择您的母语"}
             </div>
             <div style={hint}>点此选择</div>
           </div>
@@ -137,7 +137,7 @@ const [learningChosen, setLearningChosen] = useState(false);
           <div style={fieldLabel}>学习语言</div>
           <div style={field} onClick={() => setOpenType("learning")}>
             <div style={{ fontWeight: 900 }}>
-              {learningChosen ? getLocaleLabelWithFlags(learning) : "请选择您要学习的语言"}
+              {learningChosen ? getLocaleLabelWithFlags(learning ?? fallbackLearning) : "请选择您要学习的语言"}
             </div>
             <div style={hint}>点此选择</div>
           </div>
