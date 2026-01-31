@@ -2,31 +2,38 @@
 "use client";
 
 export type LocaleCode =
-  | "zh-TW"
-  | "zh-CN"
-  | "en-US"
-  | "en-GB"
-  | "es-ES"
-  | "es-MX"
-  | "fr-FR"
-  | "de-DE"
-  | "ja-JP"
-  | "ko-KR"
-  | "pt-PT"
-  | "pt-BR"
-  | "it-IT"
-  | "ru-RU";
+  | "zh-Hant-TW" // 繁中（台湾）
+  | "zh-Hans-CN" // 简中（中国）
+  | "en-US"      // 英语（美国）
+  | "en-GB"      // 英语（英国）
+  | "es-ES"      // 西语（西班牙）
+  | "es-MX"      // 西语（墨西哥）
+  | "fr-FR"      // 法语（法国）
+  | "de-DE"      // 德语（德国）
+  | "ja-JP"      // 日语（日本）
+  | "ko-KR"      // 韩语（韩国）
+  | "pt-PT"      // 葡语（葡萄牙）
+  | "pt-BR"      // 葡语（巴西）
+  | "it-IT"      // 意大利语（意大利）
+  | "ru-RU";     // 俄语（俄罗斯）
 
 export type LangConfig = {
-  native: LocaleCode | null;   // 母语（未选为 null）
-  learning: LocaleCode | null; // 学习语言（未选为 null）
+  native: LocaleCode;   // 母语
+  learning: LocaleCode; // 学习语言
 };
 
-const STORAGE_KEY = "langConfig.v2";
+export type LocaleOption = {
+  code: LocaleCode;
+  label: string;
+  /** 可选：显示用国旗（一个或多个） */
+  flags?: string[];
+};
 
-const EMPTY_CONFIG: LangConfig = {
-  native: null,
-  learning: null,
+const STORAGE_KEY = "langConfig.v1";
+
+const DEFAULT_CONFIG: LangConfig = {
+  native: "zh-Hant-TW",
+  learning: "en-US",
 };
 
 function isLocaleCode(x: any): x is LocaleCode {
@@ -39,16 +46,11 @@ function safeParse(json: string | null): LangConfig | null {
     const obj = JSON.parse(json);
     if (!obj || typeof obj !== "object") return null;
 
-    const nativeRaw = (obj as any).native ?? null;
-    const learningRaw = (obj as any).learning ?? null;
+    const native = (obj as any).native;
+    const learning = (obj as any).learning;
 
-    const native = nativeRaw === null ? null : String(nativeRaw);
-    const learning = learningRaw === null ? null : String(learningRaw);
-
-    return {
-      native: native && isLocaleCode(native) ? (native as LocaleCode) : null,
-      learning: learning && isLocaleCode(learning) ? (learning as LocaleCode) : null,
-    };
+    if (!isLocaleCode(native) || !isLocaleCode(learning)) return null;
+    return { native, learning };
   } catch {
     return null;
   }
@@ -56,14 +58,12 @@ function safeParse(json: string | null): LangConfig | null {
 
 export function hasLangConfig(): boolean {
   if (typeof window === "undefined") return false;
-  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  return !!cfg?.native && !!cfg?.learning;
+  return !!safeParse(window.localStorage.getItem(STORAGE_KEY));
 }
 
 export function getLangConfig(): LangConfig {
-  if (typeof window === "undefined") return EMPTY_CONFIG;
-  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  return cfg ?? EMPTY_CONFIG;
+  if (typeof window === "undefined") return DEFAULT_CONFIG;
+  return safeParse(window.localStorage.getItem(STORAGE_KEY)) ?? DEFAULT_CONFIG;
 }
 
 export function setLangConfig(cfg: LangConfig) {
@@ -76,30 +76,32 @@ export function clearLangConfig() {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
+/** 给 UI 用：显示名字 */
 export function getLocaleLabel(code: LocaleCode): string {
-  const hit = LOCALE_OPTIONS.find((o) => o.code === code);
-  return hit?.label ?? code;
+  const found = LOCALE_OPTIONS.find((x) => x.code === code);
+  return found?.label ?? code;
 }
 
-export const LOCALE_OPTIONS: { code: LocaleCode; label: string }[] = [
-  { code: "en-US", label: "English 🇺🇸" },
-  { code: "en-GB", label: "English 🇬🇧" },
+/** 给 UI 用：下拉/滚动列表 */
+export const LOCALE_OPTIONS: LocaleOption[] = [
+  { code: "zh-Hant-TW", label: "中文（繁體）", flags: ["🇹🇼"] },
+  { code: "zh-Hans-CN", label: "中文（简体）", flags: ["🇨🇳"] },
 
-  { code: "zh-TW", label: "中文（繁體） 🇹🇼" },
-  { code: "zh-CN", label: "中文（简体） 🇨🇳" },
+  { code: "en-US", label: "English", flags: ["🇺🇸"] },
+  { code: "en-GB", label: "English", flags: ["🇬🇧"] },
 
-  { code: "es-ES", label: "Español 🇪🇸" },
-  { code: "es-MX", label: "Español 🇲🇽" },
+  { code: "es-ES", label: "Español", flags: ["🇪🇸"] },
+  { code: "es-MX", label: "Español", flags: ["🇲🇽"] },
 
-  { code: "fr-FR", label: "Français 🇫🇷" },
-  { code: "de-DE", label: "Deutsch 🇩🇪" },
+  { code: "fr-FR", label: "Français", flags: ["🇫🇷"] },
+  { code: "de-DE", label: "Deutsch", flags: ["🇩🇪"] },
 
-  { code: "ja-JP", label: "日本語 🇯🇵" },
-  { code: "ko-KR", label: "한국어 🇰🇷" },
+  { code: "ja-JP", label: "日本語", flags: ["🇯🇵"] },
+  { code: "ko-KR", label: "한국어", flags: ["🇰🇷"] },
 
-  { code: "pt-PT", label: "Português 🇵🇹" },
-  { code: "pt-BR", label: "Português 🇧🇷" },
+  { code: "pt-PT", label: "Português", flags: ["🇵🇹"] },
+  { code: "pt-BR", label: "Português", flags: ["🇧🇷"] },
 
-  { code: "it-IT", label: "Italiano 🇮🇹" },
-  { code: "ru-RU", label: "Русский 🇷🇺" },
+  { code: "it-IT", label: "Italiano", flags: ["🇮🇹"] },
+  { code: "ru-RU", label: "Русский", flags: ["🇷🇺"] },
 ];
