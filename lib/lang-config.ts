@@ -2,43 +2,39 @@
 "use client";
 
 export type LocaleCode =
-  | "zh-Hant-TW" // 繁中（台湾）
-  | "zh-Hans-CN" // 简中（中国）
-  | "en-US"      // 英语（美国）
-  | "en-GB"      // 英语（英国）
-  | "es-ES"      // 西语（西班牙）
-  | "es-MX"      // 西语（墨西哥）
-  | "fr-FR"      // 法语（法国）
-  | "de-DE"      // 德语（德国）
-  | "ja-JP"      // 日语（日本）
-  | "ko-KR"      // 韩语（韩国）
-  | "pt-PT"      // 葡语（葡萄牙）
-  | "pt-BR"      // 葡语（巴西）
-  | "it-IT"      // 意大利语（意大利）
-  | "ru-RU";     // 俄语（俄罗斯）
+  | "en-US"
+  | "en-GB"
+  | "zh-Hans-CN"
+  | "zh-Hant-TW"
+  | "es-ES"
+  | "es-MX"
+  | "fr-FR"
+  | "de-DE"
+  | "ja-JP"
+  | "ko-KR"
+  | "pt-PT"
+  | "pt-BR"
+  | "it-IT"
+  | "ru-RU";
 
 export type LangConfig = {
-  native: LocaleCode;   // 母语
-  learning: LocaleCode; // 学习语言
+  // ✅ 允许 null：满足“不要预选”
+  native: LocaleCode | null;
+  learning: LocaleCode | null;
 };
 
 export type LocaleOption = {
   code: LocaleCode;
   label: string;
-  /** 可选：显示用国旗（一个或多个） */
-  flags?: string[];
+  flags: string[]; // ✅ 统一叫 flags（数组）
 };
 
 const STORAGE_KEY = "langConfig.v1";
 
 const DEFAULT_CONFIG: LangConfig = {
-  native: "zh-Hant-TW",
-  learning: "en-US",
+  native: null,
+  learning: null,
 };
-
-function isLocaleCode(x: any): x is LocaleCode {
-  return LOCALE_OPTIONS.some((o) => o.code === x);
-}
 
 function safeParse(json: string | null): LangConfig | null {
   if (!json) return null;
@@ -46,24 +42,33 @@ function safeParse(json: string | null): LangConfig | null {
     const obj = JSON.parse(json);
     if (!obj || typeof obj !== "object") return null;
 
-    const native = (obj as any).native;
-    const learning = (obj as any).learning;
+    const native = (obj as any).native ?? null;
+    const learning = (obj as any).learning ?? null;
 
-    if (!isLocaleCode(native) || !isLocaleCode(learning)) return null;
-    return { native, learning };
+    // 允许 null，但如果不是 null 必须是 string
+    if (native !== null && typeof native !== "string") return null;
+    if (learning !== null && typeof learning !== "string") return null;
+
+    return {
+      native: native as LocaleCode | null,
+      learning: learning as LocaleCode | null,
+    };
   } catch {
     return null;
   }
 }
 
+/** ✅ 是否已完成选择（两者都非 null 才算） */
 export function hasLangConfig(): boolean {
   if (typeof window === "undefined") return false;
-  return !!safeParse(window.localStorage.getItem(STORAGE_KEY));
+  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  return !!cfg?.native && !!cfg?.learning;
 }
 
 export function getLangConfig(): LangConfig {
   if (typeof window === "undefined") return DEFAULT_CONFIG;
-  return safeParse(window.localStorage.getItem(STORAGE_KEY)) ?? DEFAULT_CONFIG;
+  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  return cfg ?? DEFAULT_CONFIG;
 }
 
 export function setLangConfig(cfg: LangConfig) {
@@ -76,22 +81,27 @@ export function clearLangConfig() {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
-/** 给 UI 用：显示名字 */
 export function getLocaleLabel(code: LocaleCode): string {
-  const found = LOCALE_OPTIONS.find((x) => x.code === code);
-  return found?.label ?? code;
+  const hit = LOCALE_OPTIONS.find((x) => x.code === code);
+  return hit?.label ?? code;
 }
 
-/** 给 UI 用：下拉/滚动列表 */
+export function getLocaleLabelWithFlag(code: LocaleCode): string {
+  const hit = LOCALE_OPTIONS.find((x) => x.code === code);
+  if (!hit) return code;
+  return `${hit.label} ${hit.flags.join("")}`.trim();
+}
+
+/** ✅ 语言清单（你说的“语言 + 国家国旗分开”都在这里） */
 export const LOCALE_OPTIONS: LocaleOption[] = [
-  { code: "zh-Hant-TW", label: "中文（繁體）", flags: ["🇹🇼"] },
+  { code: "en-US", label: "English (US)", flags: ["🇺🇸"] },
+  { code: "en-GB", label: "English (UK)", flags: ["🇬🇧"] },
+
   { code: "zh-Hans-CN", label: "中文（简体）", flags: ["🇨🇳"] },
+  { code: "zh-Hant-TW", label: "中文（繁體）", flags: ["🇹🇼"] },
 
-  { code: "en-US", label: "English", flags: ["🇺🇸"] },
-  { code: "en-GB", label: "English", flags: ["🇬🇧"] },
-
-  { code: "es-ES", label: "Español", flags: ["🇪🇸"] },
-  { code: "es-MX", label: "Español", flags: ["🇲🇽"] },
+  { code: "es-ES", label: "Español (ES)", flags: ["🇪🇸"] },
+  { code: "es-MX", label: "Español (MX)", flags: ["🇲🇽"] },
 
   { code: "fr-FR", label: "Français", flags: ["🇫🇷"] },
   { code: "de-DE", label: "Deutsch", flags: ["🇩🇪"] },
@@ -99,19 +109,9 @@ export const LOCALE_OPTIONS: LocaleOption[] = [
   { code: "ja-JP", label: "日本語", flags: ["🇯🇵"] },
   { code: "ko-KR", label: "한국어", flags: ["🇰🇷"] },
 
-  { code: "pt-PT", label: "Português", flags: ["🇵🇹"] },
-  { code: "pt-BR", label: "Português", flags: ["🇧🇷"] },
+  { code: "pt-PT", label: "Português (PT)", flags: ["🇵🇹"] },
+  { code: "pt-BR", label: "Português (BR)", flags: ["🇧🇷"] },
 
   { code: "it-IT", label: "Italiano", flags: ["🇮🇹"] },
   { code: "ru-RU", label: "Русский", flags: ["🇷🇺"] },
 ];
-
-/** ✅ 给 Settings 用：显示「名称 + 国旗」 */
-export function getLocaleLabelWithFlag(code: LocaleCode): string {
-  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
-  if (!opt) return getLocaleLabel(code);
-
-  const flags = (opt as any).flags;
-  const flagText = Array.isArray(flags) ? flags.join("") : "";
-  return `${opt.label}${flagText ? " " + flagText : ""}`;
-}
