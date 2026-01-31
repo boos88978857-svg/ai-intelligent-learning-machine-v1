@@ -105,3 +105,13 @@ export const LOCALE_OPTIONS: LocaleOption[] = [
   { code: "it-IT", label: "Italiano", flags: ["🇮🇹"] },
   { code: "ru-RU", label: "Русский", flags: ["🇷🇺"] },
 ];
+
+/** ✅ 给 Settings 用：显示「名称 + 国旗」 */
+export function getLocaleLabelWithFlag(code: LocaleCode): string {
+  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
+  if (!opt) return getLocaleLabel(code);
+
+  const flags = (opt as any).flags;
+  const flagText = Array.isArray(flags) ? flags.join("") : "";
+  return `${opt.label}${flagText ? " " + flagText : ""}`;
+}
