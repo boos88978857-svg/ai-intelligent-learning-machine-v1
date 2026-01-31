@@ -2,10 +2,10 @@
 "use client";
 
 export type LocaleCode =
+  | "zh-Hant-TW"
+  | "zh-Hans-CN"
   | "en-US"
   | "en-GB"
-  | "zh-Hans-CN"
-  | "zh-Hant-TW"
   | "es-ES"
   | "es-MX"
   | "fr-FR"
@@ -18,22 +18,21 @@ export type LocaleCode =
   | "ru-RU";
 
 export type LangConfig = {
-  // ✅ 允许 null：满足“不要预选”
-  native: LocaleCode | null;
-  learning: LocaleCode | null;
+  native: LocaleCode; // 母语
+  learning: LocaleCode; // 学习语言
 };
 
 export type LocaleOption = {
   code: LocaleCode;
   label: string;
-  flags: string[]; // ✅ 统一叫 flags（数组）
+  flags: string[]; // ✅ 注意：是 flags（数组）
 };
 
 const STORAGE_KEY = "langConfig.v1";
 
 const DEFAULT_CONFIG: LangConfig = {
-  native: null,
-  learning: null,
+  native: "zh-Hant-TW",
+  learning: "en-US",
 };
 
 function safeParse(json: string | null): LangConfig | null {
@@ -42,27 +41,19 @@ function safeParse(json: string | null): LangConfig | null {
     const obj = JSON.parse(json);
     if (!obj || typeof obj !== "object") return null;
 
-    const native = (obj as any).native ?? null;
-    const learning = (obj as any).learning ?? null;
+    const native = String((obj as any).native ?? "");
+    const learning = String((obj as any).learning ?? "");
+    if (!native || !learning) return null;
 
-    // 允许 null，但如果不是 null 必须是 string
-    if (native !== null && typeof native !== "string") return null;
-    if (learning !== null && typeof learning !== "string") return null;
-
-    return {
-      native: native as LocaleCode | null,
-      learning: learning as LocaleCode | null,
-    };
+    return { native: native as LocaleCode, learning: learning as LocaleCode };
   } catch {
     return null;
   }
 }
 
-/** ✅ 是否已完成选择（两者都非 null 才算） */
 export function hasLangConfig(): boolean {
   if (typeof window === "undefined") return false;
-  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  return !!cfg?.native && !!cfg?.learning;
+  return !!safeParse(window.localStorage.getItem(STORAGE_KEY));
 }
 
 export function getLangConfig(): LangConfig {
@@ -82,17 +73,17 @@ export function clearLangConfig() {
 }
 
 export function getLocaleLabel(code: LocaleCode): string {
-  const hit = LOCALE_OPTIONS.find((x) => x.code === code);
-  return hit?.label ?? code;
+  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
+  return opt ? opt.label : code;
 }
 
-export function getLocaleLabelWithFlag(code: LocaleCode): string {
-  const hit = LOCALE_OPTIONS.find((x) => x.code === code);
-  if (!hit) return code;
-  return `${hit.label} ${hit.flags.join("")}`.trim();
+export function getLocaleLabelWithFlags(code: LocaleCode): string {
+  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
+  if (!opt) return code;
+  return `${opt.label} ${opt.flags.join("")}`.trim();
 }
 
-/** ✅ 语言清单（你说的“语言 + 国家国旗分开”都在这里） */
+/** ✅ 你指定的语言 + 国家旗帜（同语不同国分开） */
 export const LOCALE_OPTIONS: LocaleOption[] = [
   { code: "en-US", label: "English (US)", flags: ["🇺🇸"] },
   { code: "en-GB", label: "English (UK)", flags: ["🇬🇧"] },
