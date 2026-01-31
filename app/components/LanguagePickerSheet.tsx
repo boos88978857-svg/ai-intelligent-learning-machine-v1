@@ -1,269 +1,209 @@
-// app/components/LanguagePickerSheet.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { LocaleOption, LocaleCode } from "../../lib/lang-config";
+import type { LocaleCode, LocaleOption } from "../../lib/lang-config";
 import { LOCALE_OPTIONS } from "../../lib/lang-config";
 
 type Props = {
   open: boolean;
   title: string;
-  value: LocaleCode | null;
+  value: LocaleCode | null; // ✅ 允许 null（不预选）
   onClose: () => void;
-  onPick: (code: LocaleCode) => void;
+  onConfirm: (value: LocaleCode) => void;
 };
 
-const overlay: React.CSSProperties = {
+const overlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   background: "rgba(0,0,0,0.35)",
-  zIndex: 9999,
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "center",
+  zIndex: 1000,
 };
 
-const sheet: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 980,
+const sheetStyle: React.CSSProperties = {
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: "#fff",
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
-  background: "#fff",
-  border: "1px solid rgba(0,0,0,0.08)",
-  boxShadow: "0 -12px 30px rgba(0,0,0,0.18)",
-  overflow: "hidden",
-};
-
-const header: React.CSSProperties = {
-  padding: "14px 14px 10px",
-  borderBottom: "1px solid rgba(0,0,0,0.08)",
+  zIndex: 1001,
+  maxHeight: "80vh",
   display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 10,
+  flexDirection: "column",
 };
 
-const hTitle: React.CSSProperties = {
-  fontSize: 18,
+const headerStyle: React.CSSProperties = {
+  padding: "14px 16px",
+  borderBottom: "1px solid #eee",
   fontWeight: 900,
-};
-
-const closeBtn: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#fff",
-  cursor: "pointer",
-};
-
-const body: React.CSSProperties = {
-  padding: 14,
+  fontSize: 16,
 };
 
 const wheelWrap: React.CSSProperties = {
   position: "relative",
-  borderRadius: 16,
-  border: "1px solid rgba(0,0,0,0.08)",
-  background: "#fafafa",
+  flex: 1,
   overflow: "hidden",
 };
 
-const wheel: React.CSSProperties = {
-  height: 260,
+const wheelStyle: React.CSSProperties = {
+  height: "100%",
   overflowY: "auto",
-  scrollSnapType: "y mandatory",
   WebkitOverflowScrolling: "touch",
-  overscrollBehavior: "contain", // ✅ 关键：防止滚动穿透导致整个页面动
-  paddingTop: 88, // ✅ 让顶部/底部也能停在中间
-  paddingBottom: 88,
+  scrollSnapType: "y mandatory",
 };
 
-const item: React.CSSProperties = {
-  height: 46,
+const itemStyle: React.CSSProperties = {
+  height: 48,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   scrollSnapAlign: "center",
   fontSize: 16,
-  userSelect: "none",
   cursor: "pointer",
 };
 
-const centerMask: React.CSSProperties = {
-  pointerEvents: "none",
-  position: "absolute",
-  left: 0,
-  right: 0,
-  top: "50%",
-  transform: "translateY(-50%)",
-  height: 46,
-  borderTop: "1px solid rgba(0,0,0,0.12)",
-  borderBottom: "1px solid rgba(0,0,0,0.12)",
-  background: "rgba(255,255,255,0.72)",
-  backdropFilter: "blur(3px)",
-};
-
-const footer: React.CSSProperties = {
-  padding: "12px 14px 16px",
-  borderTop: "1px solid rgba(0,0,0,0.08)",
+const footerStyle: React.CSSProperties = {
+  padding: 12,
+  borderTop: "1px solid #eee",
   display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  flexWrap: "wrap",
   gap: 10,
 };
 
-const pill: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(0,0,0,0.10)",
-  background: "#fff",
-  fontSize: 12,
-  opacity: 0.9,
-};
-
-const primary: React.CSSProperties = {
+const btnStyle: React.CSSProperties = {
+  flex: 1,
   padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid #111",
-  background: "#111",
-  color: "#fff",
+  borderRadius: 10,
+  border: "1px solid #ddd",
+  background: "#fff",
   cursor: "pointer",
 };
 
-function joinFlags(opt: LocaleOption): string {
-  if (!opt.flags || opt.flags.length === 0) return "";
-  return opt.flags.join("");
-}
+const btnPrimaryStyle: React.CSSProperties = {
+  ...btnStyle,
+  background: "#111",
+  color: "#fff",
+  border: "1px solid #111",
+};
 
-export default function LanguagePickerSheet({ open, title, value, onClose, onPick }: Props) {
+export default function LanguagePickerSheet({
+  open,
+  title,
+  value,
+  onClose,
+  onConfirm,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const options = useMemo(() => LOCALE_OPTIONS, []);
+  const itemHeight = 48;
 
-  // ✅ 以传入 value 为初始；若 null，就默认第一项（但 UI 不会帮你预选，外面控制显示）
-  const initial = useMemo<LocaleCode>(() => value ?? LOCALE_OPTIONS[0].code, [value]);
-  const [current, setCurrent] = useState<LocaleCode>(initial);
+  const [current, setCurrent] = useState<LocaleCode | null>(value);
 
-  const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
-  const mapByCode = useMemo(() => {
-    const m = new Map<LocaleCode, LocaleOption>();
-    LOCALE_OPTIONS.forEach((o) => m.set(o.code, o));
-    return m;
-  }, []);
-
-  function indexOf(code: LocaleCode) {
-    const idx = codes.indexOf(code);
-    return idx >= 0 ? idx : 0;
-  }
-
-  function scrollTo(code: LocaleCode, behavior: ScrollBehavior = "smooth") {
-    const el = ref.current;
-    if (!el) return;
-    const idx = indexOf(code);
-    // 46 为 item 高度；加上 paddingTop 的影响我们用 scrollSnap + padding 解决
-    el.scrollTo({ top: idx * 46, behavior });
-  }
-
-  // ✅ 打开时：锁 body 滚动，且对齐到当前值
+  // 🔒 打开时锁住 body 滚动
   useEffect(() => {
     if (!open) return;
-
-    const prevOverflow = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
-    // 对齐到当前值/initial
-    setCurrent(initial);
-    requestAnimationFrame(() => scrollTo(initial, "auto"));
-
     return () => {
-      document.body.style.overflow = prevOverflow;
+      document.body.style.overflow = prev;
     };
-  }, [open, initial]);
+  }, [open]);
 
-  // ✅ wheel 滚动更新 current（吸附）
+  // 初次打开时对齐（如果有 value）
+  useEffect(() => {
+    if (!open) return;
+    if (!ref.current) return;
+    if (!value) return;
+
+    const idx = options.findIndex((o) => o.code === value);
+    if (idx >= 0) {
+      ref.current.scrollTo({
+        top: idx * itemHeight,
+        behavior: "auto",
+      });
+    }
+  }, [open, value, options]);
+
+  // 监听滚动 → 计算当前项
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (!open) return;
 
     let raf = 0;
 
     const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = window.requestAnimationFrame(() => {
-        const idx = Math.round(el.scrollTop / 46);
-        const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-        const next = codes[clamped];
-        setCurrent(next);
+      raf = requestAnimationFrame(() => {
+        const idx = Math.round(el.scrollTop / itemHeight);
+        const clamped = Math.max(0, Math.min(options.length - 1, idx));
+        setCurrent(options[clamped].code);
       });
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
-      el.removeEventListener("scroll", onScroll as any);
+      el.removeEventListener("scroll", onScroll);
     };
-  }, [open, codes]);
+  }, [options]);
 
   if (!open) return null;
 
-  const currentOpt = mapByCode.get(current);
+  const currentOption = options.find((o) => o.code === current);
 
   return (
-    <div style={overlay} onClick={onClose}>
-      <div style={sheet} onClick={(e) => e.stopPropagation()}>
-        <div style={header}>
-          <div style={hTitle}>{title}</div>
-          <button style={closeBtn} onClick={onClose}>
-            关闭
+    <>
+      <div style={overlayStyle} onClick={onClose} />
+
+      <div style={sheetStyle}>
+        <div style={headerStyle}>{title}</div>
+
+        <div style={wheelWrap}>
+          <div ref={ref} style={wheelStyle}>
+            {options.map((opt: LocaleOption) => {
+              const active = opt.code === current;
+              return (
+                <div
+                  key={opt.code}
+                  style={{
+                    ...itemStyle,
+                    fontWeight: active ? 900 : 500,
+                    color: active ? "#111" : "#777",
+                    background: active ? "#f5f5f5" : "transparent",
+                  }}
+                  onClick={() => {
+                    setCurrent(opt.code);
+                    const idx = options.findIndex((o) => o.code === opt.code);
+                    ref.current?.scrollTo({
+                      top: idx * itemHeight,
+                      behavior: "smooth",
+                    });
+                  }}
+                >
+                  {opt.label} {opt.flags.join("")}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={footerStyle}>
+          <button style={btnStyle} onClick={onClose}>
+            取消
           </button>
-        </div>
-
-        <div style={body}>
-          <div style={wheelWrap}>
-            <div style={wheel} ref={ref}>
-              {LOCALE_OPTIONS.map((opt) => {
-                const active = opt.code === current;
-                return (
-                  <div
-                    key={opt.code}
-                    style={{
-                      ...item,
-                      fontWeight: active ? 900 : 600,
-                      opacity: active ? 1 : 0.55,
-                    }}
-                    onClick={() => {
-                      setCurrent(opt.code);
-                      scrollTo(opt.code);
-                    }}
-                  >
-                    {/* ✅ 修复：opt.flag -> opt.flags */}
-                    {opt.label} {joinFlags(opt)}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={centerMask} />
-          </div>
-        </div>
-
-        <div style={footer}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={pill}>
-              已选：{currentOpt?.label ?? current} {currentOpt ? joinFlags(currentOpt) : ""}
-            </span>
-          </div>
-
           <button
-            style={primary}
+            style={btnPrimaryStyle}
+            disabled={!current}
             onClick={() => {
-              onPick(current);
-              onClose();
+              if (!current) return;
+              onConfirm(current);
             }}
           >
-            选择 →
+            确定
+            {currentOption ? `：${currentOption.label}` : ""}
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
