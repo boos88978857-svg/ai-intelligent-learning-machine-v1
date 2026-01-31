@@ -18,32 +18,37 @@ export type LocaleCode =
   | "ru-RU";
 
 export type LangConfig = {
-  native: LocaleCode; // 母语
-  learning: LocaleCode; // 学习语言
+  native: LocaleCode | null;   // 母语（未选为 null）
+  learning: LocaleCode | null; // 学习语言（未选为 null）
 };
 
 const STORAGE_KEY = "langConfig.v2";
 
-const DEFAULT_CONFIG: LangConfig = {
-  native: "zh-TW",
-  learning: "en-US",
+const EMPTY_CONFIG: LangConfig = {
+  native: null,
+  learning: null,
 };
+
+function isLocaleCode(x: any): x is LocaleCode {
+  return LOCALE_OPTIONS.some((o) => o.code === x);
+}
 
 function safeParse(json: string | null): LangConfig | null {
   if (!json) return null;
   try {
     const obj = JSON.parse(json);
     if (!obj || typeof obj !== "object") return null;
-    const native = String((obj as any).native ?? "");
-    const learning = String((obj as any).learning ?? "");
-    if (!native || !learning) return null;
 
-    // 只允许在名单内的 code
-    const ok = (v: string): v is LocaleCode =>
-      LOCALE_OPTIONS.some((x) => x.code === v);
+    const nativeRaw = (obj as any).native ?? null;
+    const learningRaw = (obj as any).learning ?? null;
 
-    if (!ok(native) || !ok(learning)) return null;
-    return { native, learning };
+    const native = nativeRaw === null ? null : String(nativeRaw);
+    const learning = learningRaw === null ? null : String(learningRaw);
+
+    return {
+      native: native && isLocaleCode(native) ? (native as LocaleCode) : null,
+      learning: learning && isLocaleCode(learning) ? (learning as LocaleCode) : null,
+    };
   } catch {
     return null;
   }
@@ -51,12 +56,14 @@ function safeParse(json: string | null): LangConfig | null {
 
 export function hasLangConfig(): boolean {
   if (typeof window === "undefined") return false;
-  return !!safeParse(window.localStorage.getItem(STORAGE_KEY));
+  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  return !!cfg?.native && !!cfg?.learning;
 }
 
 export function getLangConfig(): LangConfig {
-  if (typeof window === "undefined") return DEFAULT_CONFIG;
-  return safeParse(window.localStorage.getItem(STORAGE_KEY)) ?? DEFAULT_CONFIG;
+  if (typeof window === "undefined") return EMPTY_CONFIG;
+  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  return cfg ?? EMPTY_CONFIG;
 }
 
 export function setLangConfig(cfg: LangConfig) {
@@ -70,39 +77,29 @@ export function clearLangConfig() {
 }
 
 export function getLocaleLabel(code: LocaleCode): string {
-  return LOCALE_OPTIONS.find((x) => x.code === code)?.label ?? code;
+  const hit = LOCALE_OPTIONS.find((o) => o.code === code);
+  return hit?.label ?? code;
 }
 
-export function getLocaleLabelWithFlag(code: LocaleCode): string {
-  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
-  return opt ? `${opt.label} ${opt.flag}` : code;
-}
+export const LOCALE_OPTIONS: { code: LocaleCode; label: string }[] = [
+  { code: "en-US", label: "English 🇺🇸" },
+  { code: "en-GB", label: "English 🇬🇧" },
 
-export type LocaleOption = {
-  code: LocaleCode;
-  label: string; // 显示名
-  flag: string; // emoji flag
-};
+  { code: "zh-TW", label: "中文（繁體） 🇹🇼" },
+  { code: "zh-CN", label: "中文（简体） 🇨🇳" },
 
-export const LOCALE_OPTIONS: LocaleOption[] = [
-  { code: "zh-TW", label: "中文（繁體）", flag: "🇹🇼" },
-  { code: "zh-CN", label: "中文（简体）", flag: "🇨🇳" },
+  { code: "es-ES", label: "Español 🇪🇸" },
+  { code: "es-MX", label: "Español 🇲🇽" },
 
-  { code: "en-US", label: "English", flag: "🇺🇸" },
-  { code: "en-GB", label: "English", flag: "🇬🇧" },
+  { code: "fr-FR", label: "Français 🇫🇷" },
+  { code: "de-DE", label: "Deutsch 🇩🇪" },
 
-  { code: "es-ES", label: "Español", flag: "🇪🇸" },
-  { code: "es-MX", label: "Español", flag: "🇲🇽" },
+  { code: "ja-JP", label: "日本語 🇯🇵" },
+  { code: "ko-KR", label: "한국어 🇰🇷" },
 
-  { code: "fr-FR", label: "Français", flag: "🇫🇷" },
-  { code: "de-DE", label: "Deutsch", flag: "🇩🇪" },
+  { code: "pt-PT", label: "Português 🇵🇹" },
+  { code: "pt-BR", label: "Português 🇧🇷" },
 
-  { code: "ja-JP", label: "日本語", flag: "🇯🇵" },
-  { code: "ko-KR", label: "한국어", flag: "🇰🇷" },
-
-  { code: "pt-PT", label: "Português", flag: "🇵🇹" },
-  { code: "pt-BR", label: "Português", flag: "🇧🇷" },
-
-  { code: "it-IT", label: "Italiano", flag: "🇮🇹" },
-  { code: "ru-RU", label: "Русский", flag: "🇷🇺" },
+  { code: "it-IT", label: "Italiano 🇮🇹" },
+  { code: "ru-RU", label: "Русский 🇷🇺" },
 ];
