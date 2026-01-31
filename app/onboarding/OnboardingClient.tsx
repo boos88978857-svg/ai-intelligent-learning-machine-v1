@@ -91,12 +91,15 @@ export default function OnboardingClient() {
 
   const [openType, setOpenType] = useState<"native" | "learning" | null>(null);
 
-// ⚠️ 给 TS 用的默认值（不会显示在 UI）
-const DEFAULT_NATIVE: LocaleCode = "zh-Hant";
-const DEFAULT_LEARNING: LocaleCode = "en";
+import { LOCALE_OPTIONS } from "../../lib/lang-config";
 
-const [native, setNative] = useState<LocaleCode>(DEFAULT_NATIVE);
-const [learning, setLearning] = useState<LocaleCode>(DEFAULT_LEARNING);
+// ✅ UI 仍然不预选：保持 null
+const [native, setNative] = useState<LocaleCode | null>(null);
+const [learning, setLearning] = useState<LocaleCode | null>(null);
+
+// ✅ 给「半屏选择器」用的 fallback（只用于打开时定位滚轮，不会显示在 UI 文案）
+const fallbackNative = (saved?.native ?? LOCALE_OPTIONS[0].code) as LocaleCode;
+const fallbackLearning = (saved?.learning ?? LOCALE_OPTIONS[0].code) as LocaleCode;
 
 // 用额外 flag 控制「用户有没有真的选过」
 const [nativeChosen, setNativeChosen] = useState(false);
@@ -173,7 +176,7 @@ const [learningChosen, setLearningChosen] = useState(false);
       <LanguagePickerSheet
         open={openType === "native"}
         title="选择母语"
-        value={native}
+        value={native ?? fallbackNative}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
   setNative(v);
@@ -185,7 +188,7 @@ const [learningChosen, setLearningChosen] = useState(false);
       <LanguagePickerSheet
         open={openType === "learning"}
         title="选择学习语言"
-        value={learning}
+        value={learning ?? fallbackLearning}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
   setLearning(v);
