@@ -90,8 +90,17 @@ export default function OnboardingClient() {
   const saved = useMemo(() => (hasLangConfig() ? getLangConfig() : null), []);
 
   const [openType, setOpenType] = useState<"native" | "learning" | null>(null);
-  const [native, setNative] = useState<LocaleCode | null>(null);
-  const [learning, setLearning] = useState<LocaleCode | null>(null);
+
+// ⚠️ 给 TS 用的默认值（不会显示在 UI）
+const DEFAULT_NATIVE: LocaleCode = "zh-Hant";
+const DEFAULT_LEARNING: LocaleCode = "en";
+
+const [native, setNative] = useState<LocaleCode>(DEFAULT_NATIVE);
+const [learning, setLearning] = useState<LocaleCode>(DEFAULT_LEARNING);
+
+// 用额外 flag 控制「用户有没有真的选过」
+const [nativeChosen, setNativeChosen] = useState(false);
+const [learningChosen, setLearningChosen] = useState(false);
 
   const canEnter = !!native && !!learning;
 
@@ -115,7 +124,7 @@ export default function OnboardingClient() {
           <div style={fieldLabel}>母语</div>
           <div style={field} onClick={() => setOpenType("native")}>
             <div style={{ fontWeight: 900 }}>
-              {native ? getLocaleLabelWithFlags(native) : "请选择您的母语"}
+              {nativeChosen ? getLocaleLabelWithFlags(native) : "请选择您的母语"}
             </div>
             <div style={hint}>点此选择</div>
           </div>
@@ -126,7 +135,7 @@ export default function OnboardingClient() {
           <div style={fieldLabel}>学习语言</div>
           <div style={field} onClick={() => setOpenType("learning")}>
             <div style={{ fontWeight: 900 }}>
-              {learning ? getLocaleLabelWithFlags(learning) : "请选择您要学习的语言"}
+              {learningChosen ? getLocaleLabelWithFlags(learning) : "请选择您要学习的语言"}
             </div>
             <div style={hint}>点此选择</div>
           </div>
@@ -167,9 +176,10 @@ export default function OnboardingClient() {
         value={native}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
-          setNative(v);
-          setOpenType(null);
-        }}
+  setNative(v);
+  setNativeChosen(true); // ✅ 就是这一行
+  setOpenType(null);
+}}
       />
 
       <LanguagePickerSheet
@@ -178,9 +188,10 @@ export default function OnboardingClient() {
         value={learning}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
-          setLearning(v);
-          setOpenType(null);
-        }}
+  setLearning(v);
+  setLearningChosen(true); // ✅ 就是这一行
+  setOpenType(null);
+}}
       />
     </main>
   );
