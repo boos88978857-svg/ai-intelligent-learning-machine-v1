@@ -99,7 +99,6 @@ export default function SettingsClient() {
         open={openType === "native"}
         title="更改母语"
         value={native}
-        options={LOCALE_OPTIONS}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
           setNative(v);
