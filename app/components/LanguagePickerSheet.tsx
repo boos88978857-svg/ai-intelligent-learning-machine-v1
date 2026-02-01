@@ -2,136 +2,117 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  LOCALE_OPTIONS,
-  getLocaleLabelWithFlags,
-  type LocaleCode,
-} from "../../lib/lang-config";
+import { LOCALE_OPTIONS, getLocaleLabelWithFlags, type LocaleCode } from "../../lib/lang-config";
 
 type Props = {
   open: boolean;
   title: string;
-  value: LocaleCode | null; // 允许 null：未选前不预设
+  value: LocaleCode | null;
   onClose: () => void;
   onConfirm: (v: LocaleCode) => void;
 };
+
+const ITEM_H = 52; // 每一项高度（越大越好点）
+const VISIBLE = 5; // 显示 5 行（中间一行是选中）
+const PAD = ((VISIBLE - 1) / 2) * ITEM_H; // 上下 padding，让中间对齐
 
 const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   background: "rgba(0,0,0,0.35)",
-  zIndex: 50,
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "center",
+  zIndex: 9999,
 };
 
 const sheet: React.CSSProperties = {
-  position: "fixed",
-  left: 0,
-  right: 0,
-  bottom: 0,
+  width: "100%",
+  maxWidth: 520,
   background: "#fff",
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
-  zIndex: 51,
-
-  // ✅ 接近 iOS 键盘高度
-  height: "40vh",
-  maxHeight: 420,
-  minHeight: 280,
-
-  boxShadow: "0 -12px 30px rgba(0,0,0,0.12)",
-  display: "flex",
-  flexDirection: "column",
-
-  // ✅ 关键：告诉浏览器这里允许纵向手势
-  touchAction: "pan-y",
+  boxShadow: "0 -10px 30px rgba(0,0,0,0.15)",
+  paddingBottom: 12,
 };
 
-const sheetTop: React.CSSProperties = {
-  padding: "12px 14px 10px",
-  borderBottom: "1px solid #eee",
-};
-
-const handle: React.CSSProperties = {
-  width: 44,
-  height: 5,
-  borderRadius: 999,
-  background: "#ddd",
-  margin: "0 auto 10px",
-};
-
-const headerRow: React.CSSProperties = {
+const header: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: 10,
+  padding: "12px 14px 8px",
 };
 
-const titleStyle: React.CSSProperties = {
-  fontWeight: 900,
-  fontSize: 18,
-};
+const hTitle: React.CSSProperties = { fontWeight: 900, fontSize: 18 };
 
-const smallBtn: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: 999,
+const closeBtn: React.CSSProperties = {
   border: "1px solid #e6e6e6",
   background: "#fff",
-  cursor: "pointer",
+  padding: "8px 12px",
+  borderRadius: 999,
   fontWeight: 800,
+  cursor: "pointer",
 };
 
-const content: React.CSSProperties = {
-  padding: 12,
-  flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
-  minHeight: 0, // ✅ 关键：让内部滚动生效（flex 子元素）
+const hint: React.CSSProperties = {
+  padding: "0 14px 10px",
+  fontSize: 12,
+  opacity: 0.7,
+  lineHeight: 1.5,
 };
 
 const wheelWrap: React.CSSProperties = {
-  position: "relative",
+  margin: "0 14px",
   border: "1px solid #e6e6e6",
   borderRadius: 16,
-  background: "#fafafa",
   overflow: "hidden",
-  flex: 1,
-  minHeight: 0, // ✅ 关键：让 wheel 的 overflow 生效
+  background: "#fafafa",
+  position: "relative",
 };
 
 const wheel: React.CSSProperties = {
-  height: "100%",
+  height: ITEM_H * VISIBLE,
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
   scrollSnapType: "y mandatory",
-  overscrollBehavior: "contain",
-  background: "#fafafa",
+  paddingTop: PAD,
+  paddingBottom: PAD,
 
-  // ✅ 关键：只允许纵向滚动，不要带动整个页面
+  // ✅ 关键：让手指滑动只作用于这个容器，不带动整页
+  overscrollBehavior: "contain",
   touchAction: "pan-y",
 };
 
-const rowBase: React.CSSProperties = {
-  height: 46,
+const row: React.CSSProperties = {
+  height: ITEM_H,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   scrollSnapAlign: "center",
-  fontSize: 18,
   userSelect: "none",
+  fontSize: 18,
+  fontWeight: 800,
   cursor: "pointer",
 };
 
-const rowActive: React.CSSProperties = {
-  ...rowBase,
-  fontWeight: 900,
-  color: "#111",
+const fadeTop: React.CSSProperties = {
+  pointerEvents: "none",
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: 0,
+  height: PAD,
+  background: "linear-gradient(to bottom, rgba(250,250,250,1), rgba(250,250,250,0))",
 };
 
-const rowInactive: React.CSSProperties = {
-  ...rowBase,
-  fontWeight: 700,
-  color: "#666",
+const fadeBottom: React.CSSProperties = {
+  pointerEvents: "none",
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  height: PAD,
+  background: "linear-gradient(to top, rgba(250,250,250,1), rgba(250,250,250,0))",
 };
 
 const centerLine: React.CSSProperties = {
@@ -141,10 +122,11 @@ const centerLine: React.CSSProperties = {
   right: 0,
   top: "50%",
   transform: "translateY(-50%)",
-  height: 46,
-  borderTop: "1px solid rgba(0,0,0,0.12)",
-  borderBottom: "1px solid rgba(0,0,0,0.12)",
+  height: ITEM_H,
+  borderTop: "1px solid rgba(0,0,0,0.08)",
+  borderBottom: "1px solid rgba(0,0,0,0.08)",
   background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(2px)",
 };
 
 const footer: React.CSSProperties = {
@@ -152,156 +134,171 @@ const footer: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 10,
+  padding: "10px 14px 0",
 };
 
 const pill: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: 999,
   border: "1px solid #e6e6e6",
   background: "#fff",
+  padding: "8px 10px",
+  borderRadius: 999,
   fontSize: 12,
   fontWeight: 800,
-  color: "#333",
 };
 
-const btnPrimary: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 12,
+const okBtn: React.CSSProperties = {
   border: "1px solid #111",
   background: "#111",
   color: "#fff",
-  cursor: "pointer",
+  padding: "10px 14px",
+  borderRadius: 12,
   fontWeight: 900,
+  cursor: "pointer",
 };
 
-const ITEM_H = 46;
-const SPACER_COUNT = 3;
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
 
-export default function LanguagePickerSheet({
-  open,
-  title,
-  value,
-  onClose,
-  onConfirm,
-}: Props) {
-  const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
+export default function LanguagePickerSheet({ open, title, value, onClose, onConfirm }: Props) {
+  const list = useMemo(
+    () => LOCALE_OPTIONS.map((x) => ({ code: x.code as LocaleCode, label: x.label })),
+    []
+  );
+
   const ref = useRef<HTMLDivElement>(null);
-  const sheetRef = useRef<HTMLElement>(null);
 
-  const [temp, setTemp] = useState<LocaleCode>(() => value ?? codes[0]);
+  // ✅ Sheet 内部的“当前值”，永远以滚动中心为准
+  const [current, setCurrent] = useState<LocaleCode>(list[0].code);
 
+  // ====== 打开时：锁住 body 滚动（避免你说的“滑动整页跟着动”）======
   useEffect(() => {
     if (!open) return;
-
-    const initial = value ?? codes[0];
-    setTemp(initial);
-
-    // ✅ 锁 body 滚动（不会影响 sheet 内 wheel）
-    const prevOverflow = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
-    requestAnimationFrame(() => {
-      const el = ref.current;
-      if (!el) return;
-      const idx = Math.max(0, codes.indexOf(initial));
-      el.scrollTo({ top: (idx + SPACER_COUNT) * ITEM_H, behavior: "auto" });
-    });
-
     return () => {
-      document.body.style.overflow = prevOverflow;
+      document.body.style.overflow = prev;
     };
-  }, [open, value, codes]);
+  }, [open]);
 
+  // ====== 打开时：把滚动位置对齐到传入 value（没有 value 就停在第 0 项）======
+  useEffect(() => {
+    if (!open) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const target = value ?? list[0].code;
+    setCurrent(target);
+
+    const idx = clamp(list.findIndex((x) => x.code === target), 0, list.length - 1);
+
+    // scrollTop 必须扣掉 padding 才能让那一项落在中心
+    const top = idx * ITEM_H;
+    requestAnimationFrame(() => {
+      el.scrollTo({ top, behavior: "auto" });
+    });
+  }, [open, value, list]);
+
+  // ====== 根据 scrollTop 计算中心项（核心修复点）======
   useEffect(() => {
     if (!open) return;
     const el = ref.current;
     if (!el) return;
 
     let raf = 0;
+    let snapTimer: any = null;
+
+    const calcIndex = () => {
+      // 关键：scrollTop 直接对应 idx*ITEM_H（因为 padding 是在容器内，不算进 scrollTop）
+      const idx = clamp(Math.round(el.scrollTop / ITEM_H), 0, list.length - 1);
+      return idx;
+    };
+
+    const sync = () => {
+      const idx = calcIndex();
+      const code = list[idx].code;
+      setCurrent(code);
+    };
+
+    const snapToCenter = () => {
+      const idx = calcIndex();
+      el.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
+    };
+
     const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const raw = Math.round(el.scrollTop / ITEM_H) - SPACER_COUNT;
-        const idx = Math.max(0, Math.min(codes.length - 1, raw));
-        setTemp(codes[idx]);
-      });
+      raf = requestAnimationFrame(sync);
+
+      // 停止滚动后吸附一次（更稳）
+      clearTimeout(snapTimer);
+      snapTimer = setTimeout(snapToCenter, 120);
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
+    // 初始化同步一次
+    sync();
+
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(snapTimer);
       el.removeEventListener("scroll", onScroll as any);
     };
-  }, [open, codes]);
+  }, [open, list]);
 
-  function scrollTo(code: LocaleCode) {
+  function jumpTo(code: LocaleCode) {
     const el = ref.current;
     if (!el) return;
-    const idx = Math.max(0, codes.indexOf(code));
-    el.scrollTo({ top: (idx + SPACER_COUNT) * ITEM_H, behavior: "smooth" });
+    const idx = clamp(list.findIndex((x) => x.code === code), 0, list.length - 1);
+    setCurrent(code);
+    el.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
   }
 
   if (!open) return null;
 
   return (
-    <>
-      <div style={overlay} onClick={onClose} />
-
-      {/* ✅ 关键：sheet 本体阻止事件冒泡到 overlay（避免“点了没反应/被关掉”） */}
-      <section
-        ref={sheetRef}
-        style={sheet}
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-      >
-        <div style={sheetTop}>
-          <div style={handle} />
-          <div style={headerRow}>
-            <div style={titleStyle}>{title}</div>
-            <button style={smallBtn} onClick={onClose}>
-              关闭
-            </button>
-          </div>
+    <div style={overlay} onClick={onClose}>
+      <div style={sheet} onClick={(e) => e.stopPropagation()}>
+        <div style={header}>
+          <div style={hTitle}>{title}</div>
+          <button style={closeBtn} onClick={onClose}>
+            关闭
+          </button>
         </div>
 
-        <div style={content}>
-          <div style={wheelWrap}>
-            <div style={wheel} ref={ref}>
-              {Array.from({ length: SPACER_COUNT }).map((_, i) => (
-                <div key={`top-${i}`} style={{ height: ITEM_H }} />
-              ))}
+        <div style={hint}>上下滑动选择（会自动吸附到中间），也可以点某一项直接跳到该位置。</div>
 
-              {LOCALE_OPTIONS.map((opt) => {
-                const active = opt.code === temp;
-                return (
-                  <div
-                    key={opt.code}
-                    style={active ? rowActive : rowInactive}
-                    onClick={() => scrollTo(opt.code)}
-                  >
-                    {opt.label} {opt.flags.join("")}
-                  </div>
-                );
-              })}
-
-              {Array.from({ length: SPACER_COUNT }).map((_, i) => (
-                <div key={`bot-${i}`} style={{ height: ITEM_H }} />
-              ))}
-            </div>
-
-            <div style={centerLine} />
+        <div style={wheelWrap}>
+          <div style={wheel} ref={ref}>
+            {list.map((opt) => {
+              const active = opt.code === current;
+              return (
+                <div
+                  key={opt.code}
+                  style={{
+                    ...row,
+                    opacity: active ? 1 : 0.35,
+                    transform: active ? "scale(1.02)" : "scale(0.98)",
+                  }}
+                  onClick={() => jumpTo(opt.code)}
+                >
+                  {opt.label}
+                </div>
+              );
+            })}
           </div>
 
-          <div style={footer}>
-            <span style={pill}>当前：{getLocaleLabelWithFlags(temp)}</span>
-            <button style={btnPrimary} onClick={() => onConfirm(temp)}>
-              确定
-            </button>
-          </div>
+          <div style={fadeTop} />
+          <div style={fadeBottom} />
+          <div style={centerLine} />
         </div>
-      </section>
-    </>
+
+        <div style={footer}>
+          <div style={pill}>当前：{getLocaleLabelWithFlags(current)}</div>
+          <button style={okBtn} onClick={() => onConfirm(current)}>
+            确定
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
