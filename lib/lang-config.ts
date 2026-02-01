@@ -25,7 +25,7 @@ export type LangConfig = {
 export type LocaleOption = {
   code: LocaleCode;
   label: string;
-  flags: string[]; // ✅ 注意：是 flags（数组）
+  flags: string[]; // 多国旗就放多个
 };
 
 const STORAGE_KEY = "langConfig.v1";
@@ -35,61 +35,12 @@ const DEFAULT_CONFIG: LangConfig = {
   learning: "en-US",
 };
 
-function safeParse(json: string | null): LangConfig | null {
-  if (!json) return null;
-  try {
-    const obj = JSON.parse(json);
-    if (!obj || typeof obj !== "object") return null;
-
-    const native = String((obj as any).native ?? "");
-    const learning = String((obj as any).learning ?? "");
-    if (!native || !learning) return null;
-
-    return { native: native as LocaleCode, learning: learning as LocaleCode };
-  } catch {
-    return null;
-  }
-}
-
-export function hasLangConfig(): boolean {
-  if (typeof window === "undefined") return false;
-  return !!safeParse(window.localStorage.getItem(STORAGE_KEY));
-}
-
-export function getLangConfig(): LangConfig {
-  if (typeof window === "undefined") return DEFAULT_CONFIG;
-  const cfg = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  return cfg ?? DEFAULT_CONFIG;
-}
-
-export function setLangConfig(cfg: LangConfig) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
-}
-
-export function clearLangConfig() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
-}
-
-export function getLocaleLabel(code: LocaleCode): string {
-  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
-  return opt ? opt.label : code;
-}
-
-export function getLocaleLabelWithFlags(code: LocaleCode): string {
-  const opt = LOCALE_OPTIONS.find((x) => x.code === code);
-  if (!opt) return code;
-  return `${opt.label} ${opt.flags.join("")}`.trim();
-}
-
-/** ✅ 你指定的语言 + 国家旗帜（同语不同国分开） */
 export const LOCALE_OPTIONS: LocaleOption[] = [
   { code: "en-US", label: "English (US)", flags: ["🇺🇸"] },
   { code: "en-GB", label: "English (UK)", flags: ["🇬🇧"] },
 
-  { code: "zh-Hans-CN", label: "中文（简体）", flags: ["🇨🇳"] },
   { code: "zh-Hant-TW", label: "中文（繁體）", flags: ["🇹🇼"] },
+  { code: "zh-Hans-CN", label: "中文（简体）", flags: ["🇨🇳"] },
 
   { code: "es-ES", label: "Español (ES)", flags: ["🇪🇸"] },
   { code: "es-MX", label: "Español (MX)", flags: ["🇲🇽"] },
@@ -106,3 +57,52 @@ export const LOCALE_OPTIONS: LocaleOption[] = [
   { code: "it-IT", label: "Italiano", flags: ["🇮🇹"] },
   { code: "ru-RU", label: "Русский", flags: ["🇷🇺"] },
 ];
+
+function safeParse(json: string | null): LangConfig | null {
+  if (!json) return null;
+  try {
+    const obj = JSON.parse(json);
+    if (!obj || typeof obj !== "object") return null;
+    const native = String((obj as any).native ?? "");
+    const learning = String((obj as any).learning ?? "");
+    if (!native || !learning) return null;
+    return { native: native as LocaleCode, learning: learning as LocaleCode };
+  } catch {
+    return null;
+  }
+}
+
+export function hasLangConfig(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!safeParse(window.localStorage.getItem(STORAGE_KEY));
+}
+
+export function getLangConfig(): LangConfig {
+  if (typeof window === "undefined") return DEFAULT_CONFIG;
+  return safeParse(window.localStorage.getItem(STORAGE_KEY)) ?? DEFAULT_CONFIG;
+}
+
+export function setLangConfig(cfg: LangConfig) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+}
+
+export function clearLangConfig() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STORAGE_KEY);
+}
+
+export function getLocaleOption(code: LocaleCode): LocaleOption | undefined {
+  return LOCALE_OPTIONS.find((x) => x.code === code);
+}
+
+export function getLocaleLabel(code: LocaleCode): string {
+  return getLocaleOption(code)?.label ?? code;
+}
+
+export function getLocaleLabelWithFlags(code: LocaleCode): string {
+  const opt = getLocaleOption(code);
+  if (!opt) return code;
+  const f = opt.flags?.length ? ` ${opt.flags.join("")}` : "";
+  return `${opt.label}${f}`;
+}
