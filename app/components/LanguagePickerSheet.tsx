@@ -12,13 +12,13 @@ type Props = {
   onConfirm: (v: LocaleCode) => void;
 };
 
-const ITEM_H = 44; // 每一行高度（必须和 UI 一致）
+const ITEM_H = 44;
 
 const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   background: "rgba(0,0,0,0.35)",
-  zIndex: 50,
+  zIndex: 999,
   display: "flex",
   alignItems: "flex-end",
 };
@@ -29,7 +29,6 @@ const sheet: React.CSSProperties = {
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
   border: "1px solid rgba(0,0,0,0.08)",
-  // ✅ 键盘感高度：不要太高
   height: "46vh",
   maxHeight: 420,
   padding: 12,
@@ -74,7 +73,6 @@ const wheelWrap: React.CSSProperties = {
 };
 
 const wheel: React.CSSProperties = {
-  // ✅ 列表高度（像 iOS picker）
   height: "26vh",
   maxHeight: 260,
   overflowY: "auto",
@@ -103,8 +101,9 @@ const centerMask: React.CSSProperties = {
   height: ITEM_H,
   borderTop: "1px solid rgba(0,0,0,0.10)",
   borderBottom: "1px solid rgba(0,0,0,0.10)",
-  background: "rgba(255,255,255,0.55)",
-  backdropFilter: "blur(2px)",
+  background: "rgba(255,255,255,0.65)",
+  // ✅ 这里不要 blur，不然字会“糊”
+  // backdropFilter: "blur(2px)",
 };
 
 const bottomRow: React.CSSProperties = {
@@ -144,9 +143,11 @@ export default function LanguagePickerSheet({
   const listRef = useRef<HTMLDivElement>(null);
 
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
+  const [spacerPx, setSpacerPx] = useState(0);
+
   const [current, setCurrent] = useState<LocaleCode>(() => value ?? codes[0]);
 
-  // ✅ 打开时锁住 body 滚动（避免“整页跟着动”）
+  // ✅ 打开时锁 body，避免“整页跟着滑”
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -156,37 +157,37 @@ export default function LanguagePickerSheet({
     };
   }, [open]);
 
-  // ✅ 打开时：把滚轮对齐到当前 value（如果没有，就用 current）
+  // ✅ 打开时：计算真实 spacerPx，并对齐到 value
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
     if (!el) return;
 
-    const v = value ?? current;
-    const idx = Math.max(0, codes.indexOf(v));
+    const calc = () => {
+      const s = Math.max(0, (el.clientHeight - ITEM_H) / 2);
+      setSpacerPx(s);
+      const v = value ?? current;
+      const idx = Math.max(0, codes.indexOf(v));
+      el.scrollTo({ top: idx * ITEM_H, behavior: "auto" }); // ✅ 有 padding 后不需要减 spacer
+      setCurrent(codes[idx] ?? codes[0]);
+    };
 
-    // 等 DOM 计算完高度再定位
-    requestAnimationFrame(() => {
-      const centerOffset = el.clientHeight / 2 - ITEM_H / 2;
-      el.scrollTo({ top: idx * ITEM_H - centerOffset, behavior: "auto" });
-      setCurrent(codes[idx]);
-    });
+    // 连续两次 RAF，确保高度稳定（iOS 更稳）
+    requestAnimationFrame(() => requestAnimationFrame(calc));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ✅ 核心：用“中线 offset”计算当前选中项（修复你说的：看起来是繁体，系统却当 US）
+  // ✅ 关键：用 “scrollTop + spacerPx” 算中线对应的 idx
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
     if (!el) return;
 
     let raf = 0;
-
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const centerOffset = el.clientHeight / 2 - ITEM_H / 2;
-        const centerY = el.scrollTop + centerOffset;
+        const centerY = el.scrollTop + spacerPx;
         const idx = Math.round(centerY / ITEM_H);
         const clamped = Math.max(0, Math.min(codes.length - 1, idx));
         setCurrent(codes[clamped]);
@@ -198,20 +199,19 @@ export default function LanguagePickerSheet({
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
     };
-  }, [open, codes]);
+  }, [open, codes, spacerPx]);
 
-  // ✅ 点击某项：吸附到中线（不会卡顶/底）
   function scrollTo(code: LocaleCode) {
     const el = listRef.current;
     if (!el) return;
     const idx = Math.max(0, codes.indexOf(code));
-    const centerOffset = el.clientHeight / 2 - ITEM_H / 2;
-    el.scrollTo({ top: idx * ITEM_H - centerOffset, behavior: "smooth" });
+    el.scrollTo({ top: idx * ITEM_H, behavior: "smooth" }); // ✅ 有 padding 后直接 idx*ITEM_H
   }
 
   if (!open) return null;
 
-  const label = LOCALE_OPTIONS.find((x) => x.code === current)?.label ?? String(current);
+  const label =
+    LOCALE_OPTIONS.find((x) => x.code === current)?.label ?? String(current);
 
   return (
     <div style={overlay} onClick={onClose}>
@@ -228,29 +228,29 @@ export default function LanguagePickerSheet({
         </div>
 
         <div style={wheelWrap}>
-          <div style={wheel} ref={listRef}>
-            {/* ✅ 顶部 spacer：让第一项能滚到中线 */}
-            <div style={{ height: "calc(13vh)" }} />
-
-            {LOCALE_OPTIONS.map((opt) => {
-              const active = opt.code === current;
-              return (
-                <div
-                  key={opt.code}
-                  style={{
-                    ...item,
-                    fontWeight: active ? 900 : 500,
-                    opacity: active ? 1 : 0.55,
-                  }}
-                  onClick={() => scrollTo(opt.code)}
-                >
-                  {opt.label}
-                </div>
-              );
-            })}
-
-            {/* ✅ 底部 spacer：让最后一项能滚到中线 */}
-            <div style={{ height: "calc(13vh)" }} />
+          <div
+            style={wheel}
+            ref={listRef}
+          >
+            {/* ✅ 这里用 paddingTop/Bottom 做 spacer（不要 vh、不要额外 div） */}
+            <div style={{ paddingTop: spacerPx, paddingBottom: spacerPx }}>
+              {LOCALE_OPTIONS.map((opt) => {
+                const active = opt.code === current;
+                return (
+                  <div
+                    key={opt.code}
+                    style={{
+                      ...item,
+                      fontWeight: active ? 900 : 500,
+                      opacity: active ? 1 : 0.55,
+                    }}
+                    onClick={() => scrollTo(opt.code)}
+                  >
+                    {opt.label}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div style={centerMask} />
