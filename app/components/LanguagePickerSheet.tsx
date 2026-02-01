@@ -2,12 +2,16 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { LOCALE_OPTIONS, type LocaleCode, getLocaleLabelWithFlags } from "../../lib/lang-config";
+import {
+  LOCALE_OPTIONS,
+  getLocaleLabelWithFlags,
+  type LocaleCode,
+} from "../../lib/lang-config";
 
 type Props = {
   open: boolean;
   title: string;
-  value: LocaleCode;
+  value: LocaleCode | null; // 允许 null（你要的：未选前不预设）
   onClose: () => void;
   onConfirm: (v: LocaleCode) => void;
 };
@@ -16,109 +20,113 @@ const overlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   background: "rgba(0,0,0,0.35)",
-  zIndex: 9999,
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "center",
+  zIndex: 50,
 };
 
 const sheet: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 980,
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
   background: "#fff",
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
-  border: "1px solid rgba(0,0,0,0.08)",
-  boxShadow: "0 -8px 28px rgba(0,0,0,0.18)",
-  padding: "10px 12px 14px",
+  zIndex: 51,
+  // ✅ 接近 iOS 键盘的高度（你说的“不要 2/3 屏”）
+  height: "42vh",
+  maxHeight: 420,
+  minHeight: 280,
+  boxShadow: "0 -12px 30px rgba(0,0,0,0.12)",
+  display: "flex",
+  flexDirection: "column",
+};
 
-  // ✅ 半屏高度（你要更矮/更高只改这里）
-  height: "52vh",
-  maxHeight: "52vh",
-
-  // ✅ 关键：让底部 sheet 自己吃触控滚动，不把滚动交给页面
-  overscrollBehavior: "contain",
-  touchAction: "pan-y",
+const sheetTop: React.CSSProperties = {
+  padding: "12px 14px 10px",
+  borderBottom: "1px solid #eee",
 };
 
 const handle: React.CSSProperties = {
-  width: 42,
+  width: 44,
   height: 5,
   borderRadius: 999,
-  background: "rgba(0,0,0,0.22)",
-  margin: "4px auto 10px",
+  background: "#ddd",
+  margin: "0 auto 10px",
 };
 
-const head: React.CSSProperties = {
+const headerRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
   gap: 10,
-  marginBottom: 10,
 };
 
-const hTitle: React.CSSProperties = {
+const titleStyle: React.CSSProperties = {
   fontWeight: 900,
-  fontSize: 16,
+  fontSize: 18,
 };
 
-const btn: React.CSSProperties = {
+const smallBtn: React.CSSProperties = {
   padding: "8px 10px",
-  borderRadius: 12,
-  border: "1px solid #ddd",
+  borderRadius: 999,
+  border: "1px solid #e6e6e6",
   background: "#fff",
   cursor: "pointer",
+  fontWeight: 800,
 };
 
-const btnPrimary: React.CSSProperties = {
-  ...btn,
-  border: "1px solid #111",
-  background: "#111",
-  color: "#fff",
-};
-
-const sub: React.CSSProperties = {
-  fontSize: 12,
-  opacity: 0.7,
-  marginBottom: 10,
-  lineHeight: 1.4,
+const content: React.CSSProperties = {
+  padding: 12,
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
 };
 
 const wheelWrap: React.CSSProperties = {
   position: "relative",
-  borderRadius: 16,
   border: "1px solid #e6e6e6",
+  borderRadius: 16,
   background: "#fafafa",
   overflow: "hidden",
+  flex: 1,
 };
 
 const wheel: React.CSSProperties = {
-  // ✅ 列表内部滚动（不要让外层滚）
-  height: "calc(52vh - 130px)", // 52vh - header/footer 预留
+  height: "100%",
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
-
-  // ✅ 吸附式滚动
   scrollSnapType: "y mandatory",
   overscrollBehavior: "contain",
-  touchAction: "pan-y",
+  // ✅ 避免 iOS 文字糊：不要在父层搞 opacity/filter/blur/transform
+  background: "#fafafa",
 };
 
-const item: React.CSSProperties = {
+const row: React.CSSProperties = {
   height: 46,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   scrollSnapAlign: "center",
+  fontSize: 18,
   userSelect: "none",
   cursor: "pointer",
-  fontSize: 16,
-
-  // ✅ 之前你说“字看不清楚”：不要用过低 opacity
-  opacity: 1,
+  color: "#444",
 };
 
-const centerMask: React.CSSProperties = {
+const rowActive: React.CSSProperties = {
+  ...row,
+  fontWeight: 900,
+  color: "#111",
+};
+
+const rowInactive: React.CSSProperties = {
+  ...row,
+  fontWeight: 600,
+  color: "#777",
+};
+
+const centerLine: React.CSSProperties = {
   pointerEvents: "none",
   position: "absolute",
   left: 0,
@@ -126,108 +134,90 @@ const centerMask: React.CSSProperties = {
   top: "50%",
   transform: "translateY(-50%)",
   height: 46,
-  borderTop: "1px solid rgba(0,0,0,0.08)",
-  borderBottom: "1px solid rgba(0,0,0,0.08)",
+  borderTop: "1px solid rgba(0,0,0,0.12)",
+  borderBottom: "1px solid rgba(0,0,0,0.12)",
   background: "rgba(255,255,255,0.55)",
-  backdropFilter: "blur(2px)",
 };
 
-const foot: React.CSSProperties = {
-  marginTop: 12,
+const footer: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
   gap: 10,
-  flexWrap: "wrap",
 };
 
 const pill: React.CSSProperties = {
-  padding: "6px 10px",
+  padding: "8px 10px",
   borderRadius: 999,
   border: "1px solid #e6e6e6",
   background: "#fff",
   fontSize: 12,
-  opacity: 0.9,
+  fontWeight: 800,
+  color: "#333",
 };
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
+const btnPrimary: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid #111",
+  background: "#111",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 900,
+};
 
-export default function LanguagePickerSheet({ open, title, value, onClose, onConfirm }: Props) {
-  const listRef = useRef<HTMLDivElement>(null);
+const ITEM_H = 46; // 与 row.height 必须一致
+const SPACER_COUNT = 3; // 上下缓冲：让第一/最后也能对齐中线
+
+export default function LanguagePickerSheet({
+  open,
+  title,
+  value,
+  onClose,
+  onConfirm,
+}: Props) {
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
-  const [picked, setPicked] = useState<LocaleCode>(value);
+  const ref = useRef<HTMLDivElement>(null);
 
-  // ✅ 打开时同步当前值
+  // ✅ 未选时，sheet 内部用“临时值”滚动；但外层显示仍可保持“未选择”
+  const [temp, setTemp] = useState<LocaleCode>(() => value ?? codes[0]);
+
+  // 打开时：初始化 temp + 对齐滚动
   useEffect(() => {
     if (!open) return;
-    setPicked(value);
-  }, [open, value]);
+    const initial = value ?? codes[0];
+    setTemp(initial);
 
-  // ✅ iOS/手机：打开 sheet 时锁住背景滚动（否则你滑动会带着整页走）
-  useEffect(() => {
-    if (!open) return;
+    // 锁住 body 滚动（解决“滑动整页跟着动”）
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-    const body = document.body;
-    const scrollY = window.scrollY;
-
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
+    // 等渲染后再 scroll
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      const idx = Math.max(0, codes.indexOf(initial));
+      el.scrollTo({ top: (idx + SPACER_COUNT) * ITEM_H, behavior: "auto" });
+    });
 
     return () => {
-      const y = Math.abs(parseInt(body.style.top || "0", 10)) || 0;
-      body.style.position = "";
-      body.style.top = "";
-      body.style.left = "";
-      body.style.right = "";
-      body.style.width = "";
-      window.scrollTo(0, y);
+      document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [open, value, codes]);
 
-  function indexOf(v: LocaleCode) {
-    const idx = codes.indexOf(v);
-    return idx >= 0 ? idx : 0;
-  }
-
-  function scrollTo(v: LocaleCode, behavior: ScrollBehavior = "smooth") {
-    const el = listRef.current;
-    if (!el) return;
-    const idx = indexOf(v);
-    el.scrollTo({ top: idx * 46, behavior });
-  }
-
-  // ✅ 打开后把滚动对齐到当前值（并加上下 padding，让最后一项也能吸附到中间）
+  // 监听滚动 → 吸附选中
   useEffect(() => {
     if (!open) return;
-    const el = listRef.current;
-    if (!el) return;
-
-    // 让最上/最下也能滚到正中
-    const pad = Math.max(0, Math.floor(el.clientHeight / 2 - 23));
-    el.style.paddingTop = `${pad}px`;
-    el.style.paddingBottom = `${pad}px`;
-
-    scrollTo(picked, "auto");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // ✅ 滚动时吸附到最近一项，并更新 picked
-  useEffect(() => {
-    if (!open) return;
-    const el = listRef.current;
+    const el = ref.current;
     if (!el) return;
 
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = window.requestAnimationFrame(() => {
-        const idx = clamp(Math.round(el.scrollTop / 46), 0, codes.length - 1);
-        setPicked(codes[idx]);
+      raf = requestAnimationFrame(() => {
+        const raw = Math.round(el.scrollTop / ITEM_H) - SPACER_COUNT;
+        const idx = Math.max(0, Math.min(codes.length - 1, raw));
+        setTemp(codes[idx]);
       });
     };
 
@@ -238,66 +228,74 @@ export default function LanguagePickerSheet({ open, title, value, onClose, onCon
     };
   }, [open, codes]);
 
+  function scrollTo(code: LocaleCode) {
+    const el = ref.current;
+    if (!el) return;
+    const idx = Math.max(0, codes.indexOf(code));
+    el.scrollTo({ top: (idx + SPACER_COUNT) * ITEM_H, behavior: "smooth" });
+  }
+
   if (!open) return null;
 
   return (
-    <div
-      style={overlay}
-      onClick={(e) => {
-        // 点黑色背景关闭
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div style={sheet} onClick={(e) => e.stopPropagation()}>
-        <div style={handle} />
+    <>
+      <div style={overlay} onClick={onClose} />
 
-        <div style={head}>
-          <div style={hTitle}>{title}</div>
-          <button style={btn} onClick={onClose}>
-            关闭
-          </button>
-        </div>
-
-        <div style={sub}>上下滑动选择（会自动吸附到中间），也可以点某一项直接跳到该位置。</div>
-
-        <div style={wheelWrap}>
-          <div style={wheel} ref={listRef}>
-            {LOCALE_OPTIONS.map((opt) => {
-              const active = opt.code === picked;
-              return (
-                <div
-                  key={`${opt.code}-${opt.label}`}
-                  style={{
-                    ...item,
-                    fontWeight: active ? 900 : 600,
-                    color: active ? "#111" : "rgba(17,17,17,0.75)",
-                  }}
-                  onClick={() => {
-                    setPicked(opt.code);
-                    scrollTo(opt.code);
-                  }}
-                >
-                  {opt.label}
-                </div>
-              );
-            })}
+      <section style={sheet} role="dialog" aria-modal="true">
+        <div style={sheetTop}>
+          <div style={handle} />
+          <div style={headerRow}>
+            <div style={titleStyle}>{title}</div>
+            <button style={smallBtn} onClick={onClose}>
+              关闭
+            </button>
           </div>
-          <div style={centerMask} />
         </div>
 
-        <div style={foot}>
-          <span style={pill}>当前选择：{getLocaleLabelWithFlags(picked)}</span>
+        <div style={content}>
+          <div style={wheelWrap}>
+            <div
+              style={wheel}
+              ref={ref}
+              // ✅ iOS：把触摸滚动限制在这里，别冒泡到页面
+              onTouchMove={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              {/* 上缓冲区 */}
+              {Array.from({ length: SPACER_COUNT }).map((_, i) => (
+                <div key={`top-${i}`} style={{ height: ITEM_H }} />
+              ))}
 
-          <button
-            style={btnPrimary}
-            onClick={() => {
-              onConfirm(picked);
-            }}
-          >
-            确认
-          </button>
+              {LOCALE_OPTIONS.map((opt) => {
+                const active = opt.code === temp;
+                return (
+                  <div
+                    key={opt.code}
+                    style={active ? rowActive : rowInactive}
+                    onClick={() => scrollTo(opt.code)}
+                  >
+                    {opt.label} {opt.flags.join("")}
+                  </div>
+                );
+              })}
+
+              {/* 下缓冲区 */}
+              {Array.from({ length: SPACER_COUNT }).map((_, i) => (
+                <div key={`bot-${i}`} style={{ height: ITEM_H }} />
+              ))}
+            </div>
+
+            <div style={centerLine} />
+          </div>
+
+          <div style={footer}>
+            <span style={pill}>当前：{getLocaleLabelWithFlags(temp)}</span>
+            <button style={btnPrimary} onClick={() => onConfirm(temp)}>
+              确定
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </>
   );
 }
