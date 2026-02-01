@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import LanguagePickerSheet from "../components/LanguagePickerSheet";
 
 import {
-  LOCALE_OPTIONS,
   hasLangConfig,
   getLangConfig,
   setLangConfig,
@@ -75,6 +74,7 @@ const btn: React.CSSProperties = {
   border: "1px solid #ddd",
   background: "#fff",
   cursor: "pointer",
+  fontWeight: 900,
 };
 
 const btnPrimary: React.CSSProperties = {
@@ -87,22 +87,11 @@ const btnPrimary: React.CSSProperties = {
 export default function OnboardingClient() {
   const router = useRouter();
 
-  // ✅ 如果曾经选过：可选择“沿用已保存”，但画面仍不预选（你要的）
   const saved = useMemo(() => (hasLangConfig() ? getLangConfig() : null), []);
 
   const [openType, setOpenType] = useState<"native" | "learning" | null>(null);
-
-// ✅ UI 仍然不预选：保持 null
-const [native, setNative] = useState<LocaleCode | null>(null);
-const [learning, setLearning] = useState<LocaleCode | null>(null);
-
-// ✅ 给「半屏选择器」用的 fallback（只用于打开时定位滚轮，不会显示在 UI 文案）
-const fallbackNative = (saved?.native ?? LOCALE_OPTIONS[0].code) as LocaleCode;
-const fallbackLearning = (saved?.learning ?? LOCALE_OPTIONS[0].code) as LocaleCode;
-
-// 用额外 flag 控制「用户有没有真的选过」
-const [nativeChosen, setNativeChosen] = useState(false);
-const [learningChosen, setLearningChosen] = useState(false);
+  const [native, setNative] = useState<LocaleCode | null>(null);
+  const [learning, setLearning] = useState<LocaleCode | null>(null);
 
   const canEnter = !!native && !!learning;
 
@@ -115,35 +104,31 @@ const [learningChosen, setLearningChosen] = useState(false);
   return (
     <main style={wrap}>
       <div style={card}>
-        <div style={title}>选择语言</div>
+        <div style={title}>开始前先选语言</div>
         <div style={sub}>
-          先选择<strong>母语</strong>，再选择<strong>学习语言</strong>。  
-          以后可在「设定」里随时更改。
+          母语用于解释与提示；学习语言用于题库与课程入口。之后可在「设定」随时更改。
         </div>
 
-        {/* 母语 */}
         <div style={{ marginBottom: 12 }}>
           <div style={fieldLabel}>母语</div>
           <div style={field} onClick={() => setOpenType("native")}>
             <div style={{ fontWeight: 900 }}>
-              {nativeChosen ? getLocaleLabelWithFlags(native ?? fallbackNative) : "请选择您的母语"}
+              {native ? getLocaleLabelWithFlags(native) : "请选择您的母语"}
             </div>
-            <div style={hint}>点此选择</div>
+            <div style={hint}>点我选择</div>
           </div>
         </div>
 
-        {/* 学习语言 */}
         <div>
           <div style={fieldLabel}>学习语言</div>
           <div style={field} onClick={() => setOpenType("learning")}>
             <div style={{ fontWeight: 900 }}>
-              {learningChosen ? getLocaleLabelWithFlags(learning ?? fallbackLearning) : "请选择您要学习的语言"}
+              {learning ? getLocaleLabelWithFlags(learning) : "请选择您要学习的语言"}
             </div>
-            <div style={hint}>点此选择</div>
+            <div style={hint}>点我选择</div>
           </div>
         </div>
 
-        {/* 按钮 */}
         <div style={btnRow}>
           <button
             style={btn}
@@ -166,34 +151,31 @@ const [learningChosen, setLearningChosen] = useState(false);
             onClick={enterHome}
             disabled={!canEnter}
           >
-            进入首页 →
+            下一步 →
           </button>
         </div>
       </div>
 
-      {/* ===== 半屏选择器 ===== */}
       <LanguagePickerSheet
         open={openType === "native"}
-        title="选择母语"
-        value={native ?? fallbackNative}
+        title="请选择母语"
+        value={native}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
-  setNative(v);
-  setNativeChosen(true); // ✅ 就是这一行
-  setOpenType(null);
-}}
+          setNative(v);
+          setOpenType(null);
+        }}
       />
 
       <LanguagePickerSheet
         open={openType === "learning"}
-        title="选择学习语言"
-        value={learning ?? fallbackLearning}
+        title="请选择学习语言"
+        value={learning}
         onClose={() => setOpenType(null)}
         onConfirm={(v) => {
-  setLearning(v);
-  setLearningChosen(true); // ✅ 就是这一行
-  setOpenType(null);
-}}
+          setLearning(v);
+          setOpenType(null);
+        }}
       />
     </main>
   );
