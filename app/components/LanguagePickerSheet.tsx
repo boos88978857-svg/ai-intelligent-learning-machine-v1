@@ -72,7 +72,7 @@ const wheelWrap: React.CSSProperties = {
   position: "relative",
 };
 
-const wheel: React.CSSProperties = {
+const wheelBase: React.CSSProperties = {
   height: "26vh",
   maxHeight: 260,
   overflowY: "auto",
@@ -143,10 +143,11 @@ export default function LanguagePickerSheet({
 
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
   const [spacerPx, setSpacerPx] = useState(0);
+  const spacerRef = useRef(0);
 
   const [current, setCurrent] = useState<LocaleCode>(() => value ?? codes[0]);
 
-  // 打开时锁 body，避免“整页跟着滑”
+  // ✅ 打开时锁 body，避免“整页跟着滑”
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -156,7 +157,7 @@ export default function LanguagePickerSheet({
     };
   }, [open]);
 
-  // 打开时：计算 spacerPx，并对齐到 value
+  // ✅ 打开时：计算 spacer，并对齐到 value
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
@@ -164,18 +165,21 @@ export default function LanguagePickerSheet({
 
     const calc = () => {
       const s = Math.max(0, (el.clientHeight - ITEM_H) / 2);
+      spacerRef.current = s;
       setSpacerPx(s);
-      const v = value ?? current;
+
+      const v = value ?? current ?? codes[0];
       const idx = Math.max(0, codes.indexOf(v));
       el.scrollTo({ top: idx * ITEM_H, behavior: "auto" });
       setCurrent(codes[idx] ?? codes[0]);
     };
 
+    // iOS：两次 RAF 更稳
     requestAnimationFrame(() => requestAnimationFrame(calc));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // 用 “scrollTop + spacerPx” 算中线对应的 idx
+  // ✅ 监听滚动：用 (scrollTop + spacer) 算“中线”对应 idx
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
@@ -185,7 +189,8 @@ export default function LanguagePickerSheet({
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const centerY = el.scrollTop + spacerPx;
+        const s = spacerRef.current;
+        const centerY = el.scrollTop + s;
         const idx = Math.round(centerY / ITEM_H);
         const clamped = Math.max(0, Math.min(codes.length - 1, idx));
         setCurrent(codes[clamped]);
@@ -197,7 +202,7 @@ export default function LanguagePickerSheet({
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
     };
-  }, [open, codes, spacerPx]);
+  }, [open, codes]);
 
   function scrollTo(code: LocaleCode) {
     const el = listRef.current;
@@ -211,6 +216,16 @@ export default function LanguagePickerSheet({
   const opt = LOCALE_OPTIONS.find((x) => x.code === current);
   const currentText = opt ? `${opt.label} ${opt.flags}` : String(current);
 
+  // ✅ 关键：padding 直接给滚动容器，让 item 成为“直接子元素”（scroll-snap 才稳）
+  const wheel: React.CSSProperties = {
+    ...wheelBase,
+    paddingTop: spacerPx,
+    paddingBottom: spacerPx,
+    scrollPaddingTop: spacerPx,
+    scrollPaddingBottom: spacerPx,
+    boxSizing: "border-box",
+  };
+
   return (
     <div style={overlay} onClick={onClose}>
       <div style={sheet} onClick={(e) => e.stopPropagation()}>
@@ -221,29 +236,29 @@ export default function LanguagePickerSheet({
           </button>
         </div>
 
-        <div style={hint}>上下滑动选择（会自动吸附到中间），也可以点某一项直接跳到该位置。</div>
+        <div style={hint}>
+          上下滑动选择（会自动吸附到中间），也可以点某一项直接跳到该位置。
+        </div>
 
         <div style={wheelWrap}>
           <div style={wheel} ref={listRef}>
-            <div style={{ paddingTop: spacerPx, paddingBottom: spacerPx }}>
-              {LOCALE_OPTIONS.map((o) => {
-                const active = o.code === current;
-                return (
-                  <div
-                    key={o.code}
-                    style={{
-                      ...item,
-                      fontWeight: active ? 900 : 500,
-                      opacity: active ? 1 : 0.55,
-                    }}
-                    onClick={() => scrollTo(o.code)}
-                  >
-                    <span>{o.label}</span>
-                    <span>{o.flags}</span>
-                  </div>
-                );
-              })}
-            </div>
+            {LOCALE_OPTIONS.map((o) => {
+              const active = o.code === current;
+              return (
+                <div
+                  key={o.code}
+                  style={{
+                    ...item,
+                    fontWeight: active ? 900 : 500,
+                    opacity: active ? 1 : 0.55,
+                  }}
+                  onClick={() => scrollTo(o.code)}
+                >
+                  <span>{o.label}</span>
+                  <span>{o.flags}</span>
+                </div>
+              );
+            })}
           </div>
 
           <div style={centerMask} />
