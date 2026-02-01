@@ -11,7 +11,7 @@ import {
 type Props = {
   open: boolean;
   title: string;
-  value: LocaleCode | null; // 允许 null（你要的：未选前不预设）
+  value: LocaleCode | null; // 允许 null：未选前不预设
   onClose: () => void;
   onConfirm: (v: LocaleCode) => void;
 };
@@ -32,13 +32,18 @@ const sheet: React.CSSProperties = {
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
   zIndex: 51,
-  // ✅ 接近 iOS 键盘的高度（你说的“不要 2/3 屏”）
-  height: "42vh",
+
+  // ✅ 接近 iOS 键盘高度
+  height: "40vh",
   maxHeight: 420,
   minHeight: 280,
+
   boxShadow: "0 -12px 30px rgba(0,0,0,0.12)",
   display: "flex",
   flexDirection: "column",
+
+  // ✅ 关键：告诉浏览器这里允许纵向手势
+  touchAction: "pan-y",
 };
 
 const sheetTop: React.CSSProperties = {
@@ -81,6 +86,7 @@ const content: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 10,
+  minHeight: 0, // ✅ 关键：让内部滚动生效（flex 子元素）
 };
 
 const wheelWrap: React.CSSProperties = {
@@ -90,6 +96,7 @@ const wheelWrap: React.CSSProperties = {
   background: "#fafafa",
   overflow: "hidden",
   flex: 1,
+  minHeight: 0, // ✅ 关键：让 wheel 的 overflow 生效
 };
 
 const wheel: React.CSSProperties = {
@@ -98,11 +105,13 @@ const wheel: React.CSSProperties = {
   WebkitOverflowScrolling: "touch",
   scrollSnapType: "y mandatory",
   overscrollBehavior: "contain",
-  // ✅ 避免 iOS 文字糊：不要在父层搞 opacity/filter/blur/transform
   background: "#fafafa",
+
+  // ✅ 关键：只允许纵向滚动，不要带动整个页面
+  touchAction: "pan-y",
 };
 
-const row: React.CSSProperties = {
+const rowBase: React.CSSProperties = {
   height: 46,
   display: "flex",
   alignItems: "center",
@@ -111,19 +120,18 @@ const row: React.CSSProperties = {
   fontSize: 18,
   userSelect: "none",
   cursor: "pointer",
-  color: "#444",
 };
 
 const rowActive: React.CSSProperties = {
-  ...row,
+  ...rowBase,
   fontWeight: 900,
   color: "#111",
 };
 
 const rowInactive: React.CSSProperties = {
-  ...row,
-  fontWeight: 600,
-  color: "#777",
+  ...rowBase,
+  fontWeight: 700,
+  color: "#666",
 };
 
 const centerLine: React.CSSProperties = {
@@ -166,8 +174,8 @@ const btnPrimary: React.CSSProperties = {
   fontWeight: 900,
 };
 
-const ITEM_H = 46; // 与 row.height 必须一致
-const SPACER_COUNT = 3; // 上下缓冲：让第一/最后也能对齐中线
+const ITEM_H = 46;
+const SPACER_COUNT = 3;
 
 export default function LanguagePickerSheet({
   open,
@@ -178,21 +186,20 @@ export default function LanguagePickerSheet({
 }: Props) {
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
   const ref = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
 
-  // ✅ 未选时，sheet 内部用“临时值”滚动；但外层显示仍可保持“未选择”
   const [temp, setTemp] = useState<LocaleCode>(() => value ?? codes[0]);
 
-  // 打开时：初始化 temp + 对齐滚动
   useEffect(() => {
     if (!open) return;
+
     const initial = value ?? codes[0];
     setTemp(initial);
 
-    // 锁住 body 滚动（解决“滑动整页跟着动”）
-    const prev = document.body.style.overflow;
+    // ✅ 锁 body 滚动（不会影响 sheet 内 wheel）
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // 等渲染后再 scroll
     requestAnimationFrame(() => {
       const el = ref.current;
       if (!el) return;
@@ -201,11 +208,10 @@ export default function LanguagePickerSheet({
     });
 
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
     };
   }, [open, value, codes]);
 
-  // 监听滚动 → 吸附选中
   useEffect(() => {
     if (!open) return;
     const el = ref.current;
@@ -241,7 +247,15 @@ export default function LanguagePickerSheet({
     <>
       <div style={overlay} onClick={onClose} />
 
-      <section style={sheet} role="dialog" aria-modal="true">
+      {/* ✅ 关键：sheet 本体阻止事件冒泡到 overlay（避免“点了没反应/被关掉”） */}
+      <section
+        ref={sheetRef}
+        style={sheet}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
         <div style={sheetTop}>
           <div style={handle} />
           <div style={headerRow}>
@@ -254,14 +268,7 @@ export default function LanguagePickerSheet({
 
         <div style={content}>
           <div style={wheelWrap}>
-            <div
-              style={wheel}
-              ref={ref}
-              // ✅ iOS：把触摸滚动限制在这里，别冒泡到页面
-              onTouchMove={(e) => e.stopPropagation()}
-              onWheel={(e) => e.stopPropagation()}
-            >
-              {/* 上缓冲区 */}
+            <div style={wheel} ref={ref}>
               {Array.from({ length: SPACER_COUNT }).map((_, i) => (
                 <div key={`top-${i}`} style={{ height: ITEM_H }} />
               ))}
@@ -279,7 +286,6 @@ export default function LanguagePickerSheet({
                 );
               })}
 
-              {/* 下缓冲区 */}
               {Array.from({ length: SPACER_COUNT }).map((_, i) => (
                 <div key={`bot-${i}`} style={{ height: ITEM_H }} />
               ))}
