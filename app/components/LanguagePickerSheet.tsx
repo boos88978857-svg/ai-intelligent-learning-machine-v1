@@ -29,8 +29,9 @@ const sheet: React.CSSProperties = {
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
   border: "1px solid rgba(0,0,0,0.08)",
-  height: "46vh",
-  maxHeight: 420,
+  // 更像键盘高度：别太高
+  height: "38vh",
+  maxHeight: 360,
   padding: 12,
   boxSizing: "border-box",
 };
@@ -73,14 +74,15 @@ const wheelWrap: React.CSSProperties = {
 };
 
 const wheelBase: React.CSSProperties = {
-  height: "26vh",
-  maxHeight: 260,
+  // 键盘半屏里，滚轮别太高
+  height: "20vh",
+  maxHeight: 220,
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
   scrollSnapType: "y mandatory",
 };
 
-const item: React.CSSProperties = {
+const itemBase: React.CSSProperties = {
   height: ITEM_H,
   display: "flex",
   alignItems: "center",
@@ -147,7 +149,7 @@ export default function LanguagePickerSheet({
 
   const [current, setCurrent] = useState<LocaleCode>(() => value ?? codes[0]);
 
-  // ✅ 打开时锁 body，避免“整页跟着滑”
+  // 打开时锁 body，避免“整页跟着滑”
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -157,7 +159,7 @@ export default function LanguagePickerSheet({
     };
   }, [open]);
 
-  // ✅ 打开时：计算 spacer，并对齐到 value
+  // 打开时：计算 spacer，并对齐到 value
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
@@ -174,30 +176,36 @@ export default function LanguagePickerSheet({
       setCurrent(codes[idx] ?? codes[0]);
     };
 
-    // iOS：两次 RAF 更稳
     requestAnimationFrame(() => requestAnimationFrame(calc));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ✅ 监听滚动：用 (scrollTop + spacer) 算“中线”对应 idx
+  // ✅ 修复关键：用“视窗中线”算 idx（之前你就是这里不准）
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
     if (!el) return;
 
     let raf = 0;
+
+    const compute = () => {
+      const s = spacerRef.current; // paddingTop
+      const center = el.scrollTop + el.clientHeight / 2; // 视窗中线（相对内容）
+      const raw = (center - s - ITEM_H / 2) / ITEM_H; // 把 paddingTop 和 item 半高扣掉
+      const idx = Math.round(raw);
+      const clamped = Math.max(0, Math.min(codes.length - 1, idx));
+      setCurrent(codes[clamped]);
+    };
+
     const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const s = spacerRef.current;
-        const centerY = el.scrollTop + s;
-        const idx = Math.round(centerY / ITEM_H);
-        const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-        setCurrent(codes[clamped]);
-      });
+      raf = requestAnimationFrame(compute);
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
+    // 初次也算一次，避免一打开就不对
+    requestAnimationFrame(compute);
+
     return () => {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
@@ -216,7 +224,7 @@ export default function LanguagePickerSheet({
   const opt = LOCALE_OPTIONS.find((x) => x.code === current);
   const currentText = opt ? `${opt.label} ${opt.flags}` : String(current);
 
-  // ✅ 关键：padding 直接给滚动容器，让 item 成为“直接子元素”（scroll-snap 才稳）
+  // padding 直接给滚动容器，让 item 成为直接子元素（iOS scroll-snap 才稳定）
   const wheel: React.CSSProperties = {
     ...wheelBase,
     paddingTop: spacerPx,
@@ -248,7 +256,7 @@ export default function LanguagePickerSheet({
                 <div
                   key={o.code}
                   style={{
-                    ...item,
+                    ...itemBase,
                     fontWeight: active ? 900 : 500,
                     opacity: active ? 1 : 0.55,
                   }}
