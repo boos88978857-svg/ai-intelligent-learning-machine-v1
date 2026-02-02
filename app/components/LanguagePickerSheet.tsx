@@ -29,7 +29,7 @@ const sheet: React.CSSProperties = {
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,
   border: "1px solid rgba(0,0,0,0.08)",
-  // 更像键盘高度：别太高
+  // 更接近 iOS 键盘高度
   height: "38vh",
   maxHeight: 360,
   padding: 12,
@@ -74,12 +74,12 @@ const wheelWrap: React.CSSProperties = {
 };
 
 const wheelBase: React.CSSProperties = {
-  // 键盘半屏里，滚轮别太高
   height: "20vh",
   maxHeight: 220,
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
   scrollSnapType: "y mandatory",
+  boxSizing: "border-box",
 };
 
 const itemBase: React.CSSProperties = {
@@ -134,6 +134,15 @@ const okBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
+function closestWithCode(el: Element | null): HTMLElement | null {
+  let cur: Element | null = el;
+  while (cur) {
+    if (cur instanceof HTMLElement && cur.dataset && cur.dataset.code) return cur;
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
 export default function LanguagePickerSheet({
   open,
   title,
@@ -142,8 +151,8 @@ export default function LanguagePickerSheet({
   onConfirm,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
-
   const codes = useMemo(() => LOCALE_OPTIONS.map((x) => x.code), []);
+
   const [spacerPx, setSpacerPx] = useState(0);
   const spacerRef = useRef(0);
 
@@ -159,7 +168,7 @@ export default function LanguagePickerSheet({
     };
   }, [open]);
 
-  // 打开时：计算 spacer，并对齐到 value
+  // 计算 spacer，并初始对齐
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
@@ -173,43 +182,51 @@ export default function LanguagePickerSheet({
       const v = value ?? current ?? codes[0];
       const idx = Math.max(0, codes.indexOf(v));
       el.scrollTo({ top: idx * ITEM_H, behavior: "auto" });
-      setCurrent(codes[idx] ?? codes[0]);
+
+      // 初次同步一次 current（用中心点取值，最稳）
+      requestAnimationFrame(() => syncFromCenterPoint());
     };
 
     requestAnimationFrame(() => requestAnimationFrame(calc));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ✅ 修复关键：用“视窗中线”算 idx（之前你就是这里不准）
+  // ✅ 核心：用 elementFromPoint 取“白框正中那一行”的 code
+  const syncFromCenterPoint = () => {
+    const el = listRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    const hit = document.elementFromPoint(x, y);
+    const itemEl = closestWithCode(hit);
+
+    const code = itemEl?.dataset.code as LocaleCode | undefined;
+    if (code && codes.includes(code)) setCurrent(code);
+  };
+
   useEffect(() => {
     if (!open) return;
     const el = listRef.current;
     if (!el) return;
 
     let raf = 0;
-
-    const compute = () => {
-      const s = spacerRef.current; // paddingTop
-      const center = el.scrollTop + el.clientHeight / 2; // 视窗中线（相对内容）
-      const raw = (center - s - ITEM_H / 2) / ITEM_H; // 把 paddingTop 和 item 半高扣掉
-      const idx = Math.round(raw);
-      const clamped = Math.max(0, Math.min(codes.length - 1, idx));
-      setCurrent(codes[clamped]);
-    };
-
     const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(compute);
+      raf = requestAnimationFrame(syncFromCenterPoint);
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
-    // 初次也算一次，避免一打开就不对
-    requestAnimationFrame(compute);
+    // 初次也跑一次
+    requestAnimationFrame(syncFromCenterPoint);
 
     return () => {
       cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll as any);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, codes]);
 
   function scrollTo(code: LocaleCode) {
@@ -224,14 +241,13 @@ export default function LanguagePickerSheet({
   const opt = LOCALE_OPTIONS.find((x) => x.code === current);
   const currentText = opt ? `${opt.label} ${opt.flags}` : String(current);
 
-  // padding 直接给滚动容器，让 item 成为直接子元素（iOS scroll-snap 才稳定）
+  // padding 直接给滚动容器（让 scroll-snap 更稳定）
   const wheel: React.CSSProperties = {
     ...wheelBase,
     paddingTop: spacerPx,
     paddingBottom: spacerPx,
     scrollPaddingTop: spacerPx,
     scrollPaddingBottom: spacerPx,
-    boxSizing: "border-box",
   };
 
   return (
@@ -255,6 +271,7 @@ export default function LanguagePickerSheet({
               return (
                 <div
                   key={o.code}
+                  data-code={o.code}
                   style={{
                     ...itemBase,
                     fontWeight: active ? 900 : 500,
